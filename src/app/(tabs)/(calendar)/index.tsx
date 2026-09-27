@@ -1,3 +1,4 @@
+import { useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -44,6 +45,7 @@ export default function CalendarScreen() {
   const [page, setPage] = useState(0);
   const [pulling, setPulling] = useState(false);
   const list = useRef<FlatList<string>>(null);
+  const router = useRouter();
 
   const day = today();
   const opening = openingWeek(day);
@@ -139,6 +141,7 @@ export default function CalendarScreen() {
               classes={byWeek.get(item) ?? []}
               width={width}
               today={day}
+              onOpen={(id) => router.push({ pathname: "/class/[id]", params: { id } })}
             />
           )}
         />

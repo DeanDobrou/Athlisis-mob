@@ -36,3 +36,14 @@ export function shortDate(day: string): string {
 
 /** The gym trains Monday to Friday. */
 export const WEEKDAYS = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ"];
+export const WEEKDAY_NAMES = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
+
+/** The full weekday name of a Monday-to-Friday date. */
+export function weekdayName(day: string): string {
+  return WEEKDAY_NAMES[(new Date(day + "T00:00:00Z").getUTCDay() + 6) % 7];
+}
+
+/** Minutes from now until a class day and HH:MM start, on the phone's clock. */
+export function minutesUntil(day: string, time: string): number {
+  return (new Date(`${day}T${time}:00`).getTime() - Date.now()) / 60000;
+}

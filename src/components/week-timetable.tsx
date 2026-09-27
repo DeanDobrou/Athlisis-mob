@@ -1,13 +1,12 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { addDays, WEEKDAYS } from "@/lib/dates";
+import { addDays, WEEKDAY_NAMES, WEEKDAYS } from "@/lib/dates";
 import type { MemberClass } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
 
 const TIME_COLUMN = 44;
 const GAP = 6;
 const CELL_HEIGHT = 46;
-const DAY_NAMES = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
 
 /** One week as a timetable: a row per class time, a column per weekday. */
 export function WeekTimetable({
@@ -15,14 +14,16 @@ export function WeekTimetable({
   classes,
   width,
   today,
+  onOpen,
 }: {
   week: string;
   classes: MemberClass[];
   width: number;
   today: string;
+  onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
-  const days = WEEKDAYS.map((label, i) => ({ label, day: addDays(week, i), name: DAY_NAMES[i] }));
+  const days = WEEKDAYS.map((label, i) => ({ label, day: addDays(week, i), name: WEEKDAY_NAMES[i] }));
   const times = [...new Set(classes.map((c) => c.start_time))].sort();
   const bySlot = new Map(classes.map((c) => [`${c.day} ${c.start_time}`, c]));
   const cellWidth = (width - spacing.lg * 2 - TIME_COLUMN - GAP * 5) / 5;
@@ -86,6 +87,7 @@ export function WeekTimetable({
               item={bySlot.get(`${day} ${time}`)}
               width={cellWidth}
               dayName={name}
+              onOpen={onOpen}
             />
           ))}
         </View>
@@ -98,10 +100,12 @@ function Cell({
   item,
   width,
   dayName,
+  onOpen,
 }: {
   item: MemberClass | undefined;
   width: number;
   dayName: string;
+  onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
   if (!item) return <View style={{ width, height: CELL_HEIGHT }} />;
@@ -124,21 +128,22 @@ function Cell({
         : `${left} ${left === 1 ? "θέση" : "θέσεις"}`;
 
   return (
-    <View
-      accessible
+    <Pressable
+      accessibilityRole="button"
       accessibilityLabel={`${dayName} ${item.start_time}, ${names}, ${state}`}
-      style={[
+      onPress={() => onOpen(item.id)}
+      style={({ pressed }) => [
         styles.cell,
         {
           width,
           backgroundColor: background,
           borderColor: highlight ? colors.primary : colors.border,
-          opacity: item.is_past || full || cancelled ? 0.4 : 1,
+          opacity: item.is_past || full || cancelled ? 0.4 : pressed ? 0.7 : 1,
         },
       ]}
     >
       <Text style={[typography.headline, { color: ink }]}>{mark}</Text>
-    </View>
+    </Pressable>
   );
 }
 
