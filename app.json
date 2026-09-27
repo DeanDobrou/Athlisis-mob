@@ -1,16 +1,18 @@
 {
   "expo": {
-    "name": "crossfit-gym-app-mobile",
-    "slug": "crossfit-gym-app-mobile",
+    "name": "Athlisis",
+    "slug": "ATLS",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "crossfitgymappmobile",
+    "scheme": "athlisis",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "gr.athlisis.app",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "gr.athlisis.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
