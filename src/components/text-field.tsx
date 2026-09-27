@@ -7,6 +7,7 @@ import {
   View,
   type TextInputProps,
 } from "react-native";
+import { SymbolView } from "expo-symbols";
 
 import { radius, spacing, typography, useColors } from "@/lib/theme";
 
@@ -60,12 +61,19 @@ export function TextField({
         {secret && (
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={shown ? "Απόκρυψη κωδικού" : "Εμφάνιση κωδικού"}
             hitSlop={spacing.sm}
             onPress={() => setShown((value) => !value)}
           >
-            <Text style={[typography.subhead, { color: colors.textMuted }]}>
-              {shown ? "Απόκρυψη" : "Εμφάνιση"}
-            </Text>
+            <SymbolView
+              name={
+                shown
+                  ? { ios: "eye.slash", android: "visibility_off", web: "visibility_off" }
+                  : { ios: "eye", android: "visibility", web: "visibility" }
+              }
+              size={22}
+              tintColor={colors.textMuted}
+            />
           </Pressable>
         )}
       </View>
