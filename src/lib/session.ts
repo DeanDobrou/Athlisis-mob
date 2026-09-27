@@ -13,6 +13,7 @@ const TOKEN_KEY = "session.token";
 let session: Session = { status: "loading" };
 let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
+const signOutListeners = new Set<() => void>();
 
 function set(next: Session) {
   session = next;
@@ -75,4 +76,10 @@ export function startSetPassword(setPasswordToken: string) {
 export async function signOut(notice?: string): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
   set({ status: "signedOut", notice });
+  signOutListeners.forEach((listener) => listener());
+}
+
+/** Runs `listener` on every sign-out, to clear data that belonged to that member. */
+export function onSignOut(listener: () => void) {
+  signOutListeners.add(listener);
 }
