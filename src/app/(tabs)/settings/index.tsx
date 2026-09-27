@@ -1,8 +1,16 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { signOut } from "@/lib/session";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
 
 const rows = ["Προφίλ", "Αλλαγή κωδικού", "Σχετικά"];
+
+function confirmSignOut() {
+  Alert.alert("Αποσύνδεση", "Θέλεις σίγουρα να αποσυνδεθείς;", [
+    { text: "Άκυρο", style: "cancel" },
+    { text: "Αποσύνδεση", style: "destructive", onPress: () => void signOut() },
+  ]);
+}
 
 export default function SettingsScreen() {
   const colors = useColors();
@@ -26,11 +34,17 @@ export default function SettingsScreen() {
       </View>
 
       <View style={group}>
-        <Text
-          style={[styles.row, typography.body, { color: colors.destructive }]}
+        <Pressable
+          accessibilityRole="button"
+          onPress={confirmSignOut}
+          style={({ pressed }) => pressed && { backgroundColor: colors.accent }}
         >
-          Αποσύνδεση
-        </Text>
+          <Text
+            style={[styles.row, typography.body, { color: colors.destructive }]}
+          >
+            Αποσύνδεση
+          </Text>
+        </Pressable>
       </View>
     </ScrollView>
   );

@@ -4,7 +4,8 @@ import { useSyncExternalStore } from "react";
 
 export type Session =
   | { status: "loading" }
-  | { status: "signedOut" }
+  | { status: "signedOut"; notice?: string }
+  | { status: "setPassword"; setPasswordToken: string }
   | { status: "signedIn"; token: string };
 
 const TOKEN_KEY = "session.token";
@@ -30,7 +31,7 @@ export function useSession(): Session {
   return useSyncExternalStore(subscribe, () => session);
 }
 
-/** The signed-in member's token, or null. */
+/** The signed-in token, or null. */
 export function getToken(): string | null {
   return session.status === "signedIn" ? session.token : null;
 }
@@ -59,14 +60,19 @@ export function loadSession(): Promise<void> {
   return loading;
 }
 
-/** Stores the token and signs the member in. */
+/** Stores the token and signs in. */
 export async function signIn(token: string): Promise<void> {
   await SecureStore.setItemAsync(TOKEN_KEY, token);
   set({ status: "signedIn", token });
 }
 
-/** Deletes the stored token and signs the member out. */
-export async function signOut(): Promise<void> {
+/** Holds the short-lived token that can only choose a first password. It is never stored. */
+export function startSetPassword(setPasswordToken: string) {
+  set({ status: "setPassword", setPasswordToken });
+}
+
+/** Deletes the stored token and signs out, with an optional message for the sign-in screen. */
+export async function signOut(notice?: string): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY);
-  set({ status: "signedOut" });
+  set({ status: "signedOut", notice });
 }
