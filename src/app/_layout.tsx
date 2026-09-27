@@ -1,5 +1,13 @@
-import { Stack } from "expo-router";
+import { Stack, ThemeProvider } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+
+import { useNavigationTheme } from "@/lib/theme";
 
 export default function RootLayout() {
-  return <Stack />;
+  return (
+    <ThemeProvider value={useNavigationTheme()}>
+      <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar style="auto" />
+    </ThemeProvider>
+  );
 }
