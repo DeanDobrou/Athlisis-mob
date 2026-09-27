@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState, type ReactNode } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -64,7 +64,8 @@ export default function ClassSheet() {
   function book(confirmUnpaid: boolean) {
     void run(async () => {
       const asked = await bookClass(item!.id, confirmUnpaid);
-      setConfirm(asked ? asked.confirm : null);
+      if (asked) setConfirm(asked.confirm);
+      else router.back();
     });
   }
 

@@ -25,13 +25,16 @@ import {
 } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
 
-/** The weeks to page through: this week up to the last one with classes. */
-function weeksFrom(opening: string, classes: MemberClass[]): string[] {
-  const last = classes.reduce((max, c) => {
+/** The weeks to page through: the first week with classes to the last. */
+function weeksAround(opening: string, classes: MemberClass[]): string[] {
+  let first = opening;
+  let last = opening;
+  for (const c of classes) {
     const week = weekStart(c.day);
-    return week > max ? week : max;
-  }, opening);
-  const weeks = [opening];
+    if (week < first) first = week;
+    if (week > last) last = week;
+  }
+  const weeks = [first];
   while (weeks[weeks.length - 1] < last) {
     weeks.push(addDays(weeks[weeks.length - 1], 7));
   }
@@ -42,7 +45,7 @@ export default function CalendarScreen() {
   const colors = useColors();
   const { width } = useWindowDimensions();
   const { classes, refreshing, error } = useSchedule();
-  const [page, setPage] = useState(0);
+  const [shown, setShown] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
   const list = useRef<FlatList<string>>(null);
   const router = useRouter();
@@ -50,7 +53,7 @@ export default function CalendarScreen() {
   const day = today();
   const opening = openingWeek(day);
   const weeks = useMemo(
-    () => weeksFrom(opening, classes ?? []),
+    () => weeksAround(opening, classes ?? []),
     [opening, classes],
   );
   const byWeek = useMemo(() => {
@@ -61,7 +64,8 @@ export default function CalendarScreen() {
     }
     return map;
   }, [classes]);
-  const current = Math.min(page, weeks.length - 1);
+  const openingIndex = weeks.indexOf(opening);
+  const current = shown && weeks.includes(shown) ? weeks.indexOf(shown) : openingIndex;
   const week = weeks[current];
 
   useEffect(() => {
@@ -74,7 +78,7 @@ export default function CalendarScreen() {
 
   function goTo(index: number) {
     list.current?.scrollToIndex({ index, animated: true });
-    setPage(index);
+    setShown(weeks[index]);
   }
 
   async function pull() {
@@ -99,8 +103,8 @@ export default function CalendarScreen() {
           disabled={current === weeks.length - 1}
           onPress={() => goTo(current + 1)}
         />
-        {current > 0 && (
-          <Pressable accessibilityRole="button" onPress={() => goTo(0)} hitSlop={spacing.sm}>
+        {current !== openingIndex && (
+          <Pressable accessibilityRole="button" onPress={() => goTo(openingIndex)} hitSlop={spacing.sm}>
             <Text style={[typography.subhead, { color: colors.textMuted }]}>Σήμερα</Text>
           </Pressable>
         )}
@@ -125,15 +129,17 @@ export default function CalendarScreen() {
         </View>
       ) : (
         <FlatList
+          key={`${weeks[0]}:${weeks.length}`}
           ref={list}
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           data={weeks}
           keyExtractor={(item) => item}
+          initialScrollIndex={current}
           getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           onMomentumScrollEnd={(e) =>
-            setPage(Math.round(e.nativeEvent.contentOffset.x / width))
+            setShown(weeks[Math.round(e.nativeEvent.contentOffset.x / width)])
           }
           renderItem={({ item }) => (
             <WeekTimetable
