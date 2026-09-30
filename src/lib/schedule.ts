@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import { api, apiIfChanged, ApiError, errorMessage } from "@/lib/api";
 import { getToken, onSignOut } from "@/lib/session";
 
-export type ClassType = { id: string; name: string };
+export type ClassType = { id: string; name: string; color_hex: string | null };
 
 export type MemberClass = {
   id: string;

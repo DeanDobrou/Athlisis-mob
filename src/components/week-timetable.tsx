@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { TypeDots } from "@/components/type-names";
 import { addDays, WEEKDAY_NAMES, WEEKDAYS } from "@/lib/dates";
 import type { MemberClass } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
@@ -150,6 +151,7 @@ function Cell({
       ]}
     >
       <Text style={[typography.headline, { color: ink }]}>{state.mark}</Text>
+      <TypeDots types={item.types} />
     </Pressable>
   );
 }
@@ -168,5 +170,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
+    gap: 2,
   },
 });

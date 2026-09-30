@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { TypeNames } from "@/components/type-names";
 import { classState } from "@/components/week-timetable";
 import {
   addDays,
@@ -202,12 +203,10 @@ function ClassRow({
         <Text style={[typography.headline, styles.nums, { color: ink }]}>
           {item.start_time} - {item.end_time}
         </Text>
-        <Text
-          numberOfLines={1}
+        <TypeNames
+          types={item.types}
           style={[typography.subhead, { color: state.mine ? colors.onPrimary : colors.textMuted }]}
-        >
-          {types}
-        </Text>
+        />
       </View>
       <Text style={[typography.subhead, { color: ink }]}>
         {state.mine ? "✓" : state.text}

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
 import { ConfirmSheet } from "@/components/confirm-sheet";
+import { TypeNames } from "@/components/type-names";
 import { errorMessage } from "@/lib/api";
 import { minutesUntil, shortDate, weekdayName } from "@/lib/dates";
 import { bookClass, cancelClass, useSchedule } from "@/lib/schedule";
@@ -41,7 +42,6 @@ export default function ClassSheet() {
   const cancelled = item.status === "cancelled";
   const booking = cancelled ? null : item.my_booking;
   const left = Math.max(0, item.capacity - item.booked);
-  const types = item.types.map((t) => t.name).join(" · ") || "Μάθημα";
   const places = cancelled
     ? "Το μάθημα ακυρώθηκε."
     : left === 0
@@ -149,7 +149,7 @@ export default function ClassSheet() {
         </Text>
       </View>
 
-      <Text style={[typography.headline, { color: colors.text }]}>{types}</Text>
+      <TypeNames types={item.types} style={[typography.headline, { color: colors.text }]} />
       {error ? (
         <Text
           selectable
