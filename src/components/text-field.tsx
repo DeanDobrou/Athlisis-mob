@@ -62,7 +62,7 @@ export function TextField({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={shown ? "Απόκρυψη κωδικού" : "Εμφάνιση κωδικού"}
-            hitSlop={spacing.sm}
+            hitSlop={spacing.md}
             onPress={() => setShown((value) => !value)}
           >
             <SymbolView
@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
     height: 50,
     borderWidth: 1,
     borderRadius: radius.lg,
+    borderCurve: "continuous",
     paddingHorizontal: spacing.lg,
   },
   input: { flex: 1, height: "100%" },

@@ -13,10 +13,27 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import Animated, {
+  Easing,
+  FadeInLeft,
+  FadeInRight,
+  LayoutAnimationConfig,
+} from "react-native-reanimated";
 
 import { Button } from "@/components/button";
+import { DayClasses, MonthGrid } from "@/components/month-view";
+import { Segmented } from "@/components/segmented";
 import { WeekTimetable } from "@/components/week-timetable";
-import { addDays, openingWeek, shortDate, today, weekStart } from "@/lib/dates";
+import {
+  addDays,
+  addMonths,
+  firstTrainingDay,
+  monthName,
+  monthStart,
+  shortDate,
+  today,
+  weekStart,
+} from "@/lib/dates";
 import {
   loadSchedule,
   refreshSchedule,
@@ -25,48 +42,72 @@ import {
 } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
 
-/** The weeks to page through: the first week with classes to the last. */
-function weeksAround(opening: string, classes: MemberClass[]): string[] {
+type Mode = "week" | "month";
+
+const MODES = {
+  week: {
+    pageOf: weekStart,
+    next: (week: string) => addDays(week, 7),
+    title: (week: string) => `${shortDate(week)} - ${shortDate(addDays(week, 4))}`,
+    previous: "Προηγούμενη εβδομάδα",
+    following: "Επόμενη εβδομάδα",
+  },
+  month: {
+    pageOf: monthStart,
+    next: (month: string) => addMonths(month, 1),
+    title: monthName,
+    previous: "Προηγούμενος μήνας",
+    following: "Επόμενος μήνας",
+  },
+};
+
+/** The pages to swipe through: the first with classes to the last, and `opening`. */
+function pagesAround(opening: string, classes: MemberClass[], mode: Mode): string[] {
+  const { pageOf, next } = MODES[mode];
   let first = opening;
   let last = opening;
   for (const c of classes) {
-    const week = weekStart(c.day);
-    if (week < first) first = week;
-    if (week > last) last = week;
+    const page = pageOf(c.day);
+    if (page < first) first = page;
+    if (page > last) last = page;
   }
-  const weeks = [first];
-  while (weeks[weeks.length - 1] < last) {
-    weeks.push(addDays(weeks[weeks.length - 1], 7));
+  const pages = [first];
+  while (pages[pages.length - 1] < last) {
+    pages.push(next(pages[pages.length - 1]));
   }
-  return weeks;
+  return pages;
 }
 
 export default function CalendarScreen() {
   const colors = useColors();
   const { width } = useWindowDimensions();
   const { classes, refreshing, error } = useSchedule();
-  const [shown, setShown] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>("week");
+  const [focus, setFocus] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
   const list = useRef<FlatList<string>>(null);
   const router = useRouter();
 
   const day = today();
-  const opening = openingWeek(day);
-  const weeks = useMemo(
-    () => weeksAround(opening, classes ?? []),
-    [opening, classes],
+  const start = firstTrainingDay(day);
+  const { pageOf, title, previous, following } = MODES[mode];
+  const opening = pageOf(start);
+  const pages = useMemo(
+    () => pagesAround(opening, classes ?? [], mode),
+    [opening, classes, mode],
   );
-  const byWeek = useMemo(() => {
+  const byDay = useMemo(() => {
     const map = new Map<string, MemberClass[]>();
     for (const c of classes ?? []) {
-      const week = weekStart(c.day);
-      map.set(week, [...(map.get(week) ?? []), c]);
+      map.set(c.day, [...(map.get(c.day) ?? []), c]);
     }
     return map;
   }, [classes]);
-  const openingIndex = weeks.indexOf(opening);
-  const current = shown && weeks.includes(shown) ? weeks.indexOf(shown) : openingIndex;
-  const week = weeks[current];
+  const focused = focus ?? start;
+  const openingIndex = pages.indexOf(opening);
+  const found = pages.indexOf(pageOf(focused));
+  const current = found === -1 ? openingIndex : found;
+  const page = pages[current];
 
   useEffect(() => {
     void loadSchedule();
@@ -76,9 +117,18 @@ export default function CalendarScreen() {
     return () => subscription.remove();
   }, []);
 
+  /** The day a page selects: today on today's page, otherwise its first training day. */
+  function focusFor(target: string) {
+    return target === opening ? start : firstTrainingDay(target);
+  }
+
   function goTo(index: number) {
     list.current?.scrollToIndex({ index, animated: true });
-    setShown(weeks[index]);
+    setFocus(focusFor(pages[index]));
+  }
+
+  function open(id: string) {
+    router.push({ pathname: "/class/[id]", params: { id } });
   }
 
   async function pull() {
@@ -91,36 +141,57 @@ export default function CalendarScreen() {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={pulling} onRefresh={pull} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={pulling}
+          onRefresh={pull}
+          tintColor={colors.primary}
+          colors={[colors.primary]}
+        />
+      }
     >
+      <View style={styles.modes}>
+        <Segmented
+          options={["Εβδομάδα", "Μήνας"]}
+          selected={mode === "week" ? 0 : 1}
+          onChange={(index) => setMode(index === 0 ? "week" : "month")}
+        />
+      </View>
+
       <View style={styles.bar}>
-        <WeekArrow direction="left" disabled={current === 0} onPress={() => goTo(current - 1)} />
+        <PageArrow
+          direction="left"
+          label={previous}
+          disabled={current === 0}
+          onPress={() => goTo(current - 1)}
+        />
         <Text style={[typography.headline, styles.range, { color: colors.text }]}>
-          {shortDate(week)} - {shortDate(addDays(week, 4))}
+          {title(page)}
         </Text>
-        <WeekArrow
+        <PageArrow
           direction="right"
-          disabled={current === weeks.length - 1}
+          label={following}
+          disabled={current === pages.length - 1}
           onPress={() => goTo(current + 1)}
         />
-        {current !== openingIndex && (
-          <Pressable accessibilityRole="button" onPress={() => goTo(openingIndex)} hitSlop={spacing.sm}>
-            <Text style={[typography.subhead, { color: colors.textMuted }]}>Σήμερα</Text>
+        {focused !== start && (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => goTo(openingIndex)}
+            hitSlop={spacing.md}
+          >
+            <Text style={[typography.subhead, styles.today, { color: colors.primary }]}>Σήμερα</Text>
           </Pressable>
         )}
       </View>
-
-      {error && classes && (
-        <Text style={[typography.footnote, styles.notice, { color: colors.textMuted }]}>
-          Δεν ήταν δυνατή η ενημέρωση. Βλέπεις την τελευταία αποθηκευμένη εικόνα.
-        </Text>
-      )}
 
       {classes === null ? (
         <View style={styles.status}>
           {error ? (
             <>
-              <Text style={[typography.body, { color: colors.textMuted }]}>{error}</Text>
+              <Text selectable style={[typography.body, { color: colors.textMuted }]}>
+                {error}
+              </Text>
               <Button label="Δοκίμασε ξανά" onPress={() => void refreshSchedule()} pending={refreshing} />
             </>
           ) : (
@@ -128,40 +199,67 @@ export default function CalendarScreen() {
           )}
         </View>
       ) : (
-        <FlatList
-          key={`${weeks[0]}:${weeks.length}`}
-          ref={list}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          data={weeks}
-          keyExtractor={(item) => item}
-          initialScrollIndex={current}
-          getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
-          onMomentumScrollEnd={(e) =>
-            setShown(weeks[Math.round(e.nativeEvent.contentOffset.x / width)])
-          }
-          renderItem={({ item }) => (
-            <WeekTimetable
-              week={item}
-              classes={byWeek.get(item) ?? []}
-              width={width}
-              today={day}
-              onOpen={(id) => router.push({ pathname: "/class/[id]", params: { id } })}
+        <LayoutAnimationConfig skipEntering>
+          <Animated.View
+            key={mode}
+            entering={(mode === "month" ? FadeInRight : FadeInLeft)
+              .duration(200)
+              .easing(Easing.bezier(0.23, 1, 0.32, 1))}
+            style={styles.views}
+          >
+            <FlatList
+              key={`${mode}:${pages[0]}:${pages.length}`}
+              ref={list}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              data={pages}
+              keyExtractor={(item) => item}
+              initialScrollIndex={current}
+              getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
+              onMomentumScrollEnd={(e) => {
+                const target = pages[Math.round(e.nativeEvent.contentOffset.x / width)];
+                if (target !== page) setFocus(focusFor(target));
+              }}
+              renderItem={({ item }) =>
+                mode === "week" ? (
+                  <WeekTimetable
+                    week={item}
+                    classes={[0, 1, 2, 3, 4].flatMap((i) => byDay.get(addDays(item, i)) ?? [])}
+                    width={width}
+                    today={day}
+                    onOpen={open}
+                  />
+                ) : (
+                  <MonthGrid
+                    month={item}
+                    byDay={byDay}
+                    width={width}
+                    today={day}
+                    selected={focused}
+                    onSelect={setFocus}
+                  />
+                )
+              }
             />
-          )}
-        />
+            {mode === "month" && (
+              <DayClasses day={focused} classes={byDay.get(focused) ?? []} onOpen={open} />
+            )}
+          </Animated.View>
+        </LayoutAnimationConfig>
       )}
     </ScrollView>
   );
 }
 
-function WeekArrow({
+function PageArrow({
   direction,
+  label,
   disabled,
   onPress,
 }: {
   direction: "left" | "right";
+  label: string;
   disabled: boolean;
   onPress: () => void;
 }) {
@@ -171,10 +269,10 @@ function WeekArrow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={left ? "Προηγούμενη εβδομάδα" : "Επόμενη εβδομάδα"}
+      accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
-      hitSlop={spacing.sm}
+      hitSlop={spacing.md}
       onPress={onPress}
       style={{ opacity: disabled ? 0.3 : 1 }}
     >
@@ -185,7 +283,7 @@ function WeekArrow({
             : { ios: "chevron.right", android: "chevron_right", web: "chevron_right" }
         }
         size={20}
-        tintColor={colors.text}
+        tintColor={colors.primary}
       />
     </Pressable>
   );
@@ -193,6 +291,7 @@ function WeekArrow({
 
 const styles = StyleSheet.create({
   content: { paddingVertical: spacing.md, gap: spacing.md },
+  modes: { paddingHorizontal: spacing.lg },
   bar: {
     flexDirection: "row",
     alignItems: "center",
@@ -200,6 +299,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   range: { fontVariant: ["tabular-nums"] },
-  notice: { paddingHorizontal: spacing.lg },
+  today: { fontWeight: "600" },
+  views: { gap: spacing.md },
   status: { padding: spacing.xl, gap: spacing.lg, alignItems: "center" },
 });

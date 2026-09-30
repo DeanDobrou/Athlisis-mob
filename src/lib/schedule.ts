@@ -1,10 +1,11 @@
 import { File, Paths } from "expo-file-system";
 import { useSyncExternalStore } from "react";
+import { Platform } from "react-native";
 
-import { api, apiIfChanged, ApiError } from "@/lib/api";
+import { api, apiIfChanged, ApiError, errorMessage } from "@/lib/api";
 import { getToken, onSignOut } from "@/lib/session";
 
-export type ClassType = { id: string; name: string; color_hex: string };
+export type ClassType = { id: string; name: string };
 
 export type MemberClass = {
   id: string;
@@ -25,12 +26,18 @@ type ScheduleState = {
   error: string | null;
 };
 
-const cache = new File(Paths.document, "schedule.json");
+// ponytail: the browser has no file system, so web skips the offline copy
+const cache =
+  Platform.OS === "web" ? null : new File(Paths.document, "schedule.json");
+
+/** After this long without a check, the next touch refreshes the schedule. */
+const STALE_AFTER_MS = 3 * 60 * 1000;
 
 let state: ScheduleState = { classes: null, refreshing: false, error: null };
 let etag: string | null = null;
 let cacheRead = false;
 let again = false;
+let lastAttempt = 0;
 const listeners = new Set<() => void>();
 
 function set(next: Partial<ScheduleState>) {
@@ -52,7 +59,7 @@ export function useSchedule(): ScheduleState {
 
 async function readCache() {
   cacheRead = true;
-  if (!cache.exists) return;
+  if (!cache?.exists) return;
   try {
     const saved = JSON.parse(await cache.text());
     etag = saved.etag ?? null;
@@ -79,6 +86,7 @@ export async function refreshSchedule(): Promise<void> {
     return;
   }
   const token = getToken();
+  lastAttempt = Date.now();
   set({ refreshing: true, error: null });
 
   try {
@@ -89,22 +97,26 @@ export async function refreshSchedule(): Promise<void> {
     if (getToken() !== token) return;
     if (fresh) {
       etag = fresh.etag;
-      cache.create({ overwrite: true });
-      cache.write(JSON.stringify({ etag, classes: fresh.data.classes }));
+      cache?.create({ overwrite: true });
+      cache?.write(JSON.stringify({ etag, classes: fresh.data.classes }));
       set({ classes: fresh.data.classes });
     }
     set({ refreshing: false });
   } catch (e) {
     if (getToken() !== token) return;
-    set({
-      refreshing: false,
-      error: e instanceof ApiError ? e.message : "Κάτι πήγε στραβά. Δοκίμασε ξανά.",
-    });
+    set({ refreshing: false, error: errorMessage(e) });
   }
 
   if (again) {
     again = false;
     await refreshSchedule();
+  }
+}
+
+/** Refreshes if the last check, even a failed one, was more than three minutes ago. */
+export function refreshIfStale(): void {
+  if (getToken() && !state.refreshing && Date.now() - lastAttempt > STALE_AFTER_MS) {
+    void refreshSchedule();
   }
 }
 
@@ -115,6 +127,7 @@ function patch(classId: string, change: (c: MemberClass) => MemberClass) {
 /**
  * Books a class. With no coverage the server asks first: this returns its
  * message and books nothing until called again with `confirmUnpaid`.
+ * A refusal refreshes the schedule, since the phone's copy may be out of date.
  */
 export async function bookClass(
   classId: string,
@@ -134,18 +147,28 @@ export async function bookClass(
   } catch (e) {
     const body = e instanceof ApiError ? (e.body as { confirm?: boolean }) : null;
     if (e instanceof ApiError && body?.confirm) return { confirm: e.message };
+    if (e instanceof ApiError) void refreshSchedule();
     throw e;
   }
 }
 
-/** Cancels a booking. Returns what the member still owes, if anything. */
+/**
+ * Cancels a booking. Returns what the member still owes, if anything.
+ * A refusal refreshes the schedule, since the phone's copy may be out of date.
+ */
 export async function cancelClass(
   classId: string,
   bookingId: string,
 ): Promise<string | null> {
-  const reply = await api<{ notice?: string }>("/api/bookings/" + bookingId, {
-    method: "DELETE",
-  });
+  let reply: { notice?: string };
+  try {
+    reply = await api<{ notice?: string }>("/api/bookings/" + bookingId, {
+      method: "DELETE",
+    });
+  } catch (e) {
+    if (e instanceof ApiError) void refreshSchedule();
+    throw e;
+  }
   patch(classId, (c) => ({
     ...c,
     booked: Math.max(0, c.booked - 1),
@@ -159,6 +182,6 @@ onSignOut(() => {
   etag = null;
   cacheRead = false;
   again = false;
-  if (cache.exists) cache.delete();
+  if (cache?.exists) cache.delete();
   set({ classes: null, refreshing: false, error: null });
 });

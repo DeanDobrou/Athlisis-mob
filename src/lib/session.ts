@@ -1,6 +1,7 @@
 import { File, Paths } from "expo-file-system";
 import * as SecureStore from "expo-secure-store";
 import { useSyncExternalStore } from "react";
+import { Platform } from "react-native";
 
 export type Session =
   | { status: "loading" }
@@ -9,6 +10,19 @@ export type Session =
   | { status: "signedIn"; token: string };
 
 const TOKEN_KEY = "session.token";
+
+// ponytail: browsers have no keychain, so web keeps the token in localStorage. Fine for previewing, not for a real web release.
+const store: Pick<
+  typeof SecureStore,
+  "getItemAsync" | "setItemAsync" | "deleteItemAsync"
+> =
+  Platform.OS === "web"
+    ? {
+        getItemAsync: async (key) => localStorage.getItem(key),
+        setItemAsync: async (key, value) => localStorage.setItem(key, value),
+        deleteItemAsync: async (key) => localStorage.removeItem(key),
+      }
+    : SecureStore;
 
 let session: Session = { status: "loading" };
 let loading: Promise<void> | null = null;
@@ -44,17 +58,19 @@ export function getToken(): string | null {
  */
 export function loadSession(): Promise<void> {
   loading ??= (async () => {
-    const installed = new File(Paths.document, "installed");
-    if (!installed.exists) {
-      await SecureStore.deleteItemAsync(TOKEN_KEY);
-      installed.create();
+    if (Platform.OS !== "web") {
+      const installed = new File(Paths.document, "installed");
+      if (!installed.exists) {
+        await store.deleteItemAsync(TOKEN_KEY);
+        installed.create();
+      }
     }
 
     try {
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
+      const token = await store.getItemAsync(TOKEN_KEY);
       set(token ? { status: "signedIn", token } : { status: "signedOut" });
     } catch {
-      await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+      await store.deleteItemAsync(TOKEN_KEY).catch(() => {});
       set({ status: "signedOut" });
     }
   })();
@@ -63,7 +79,7 @@ export function loadSession(): Promise<void> {
 
 /** Stores the token and signs in. */
 export async function signIn(token: string): Promise<void> {
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
+  await store.setItemAsync(TOKEN_KEY, token);
   set({ status: "signedIn", token });
 }
 
@@ -74,7 +90,7 @@ export function startSetPassword(setPasswordToken: string) {
 
 /** Deletes the stored token and signs out, with an optional message for the sign-in screen. */
 export async function signOut(notice?: string): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
+  await store.deleteItemAsync(TOKEN_KEY);
   set({ status: "signedOut", notice });
   signOutListeners.forEach((listener) => listener());
 }

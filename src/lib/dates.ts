@@ -20,12 +20,32 @@ export function weekStart(day: string): string {
   return addDays(day, -weekday);
 }
 
-/** The week the calendar opens on: this week, or next week at the weekend. */
-export function openingWeek(day: string): string {
+/** The day itself from Monday to Friday, or the next Monday at the weekend. */
+export function firstTrainingDay(day: string): string {
   const weekday = new Date(`${day}T00:00:00Z`).getUTCDay();
-  return weekday === 0 || weekday === 6
-    ? weekStart(addDays(day, 7))
-    : weekStart(day);
+  return weekday === 6 ? addDays(day, 2) : weekday === 0 ? addDays(day, 1) : day;
+}
+
+/** The 1st of the month that `day` falls in. */
+export function monthStart(day: string): string {
+  return `${day.slice(0, 7)}-01`;
+}
+
+/** The 1st of the month `months` after the month that `day` falls in. */
+export function addMonths(day: string, months: number): string {
+  const d = new Date(`${monthStart(day)}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+const MONTH_NAMES = [
+  "Ιανουάριος", "Φεβρουάριος", "Μάρτιος", "Απρίλιος", "Μάιος", "Ιούνιος",
+  "Ιούλιος", "Αύγουστος", "Σεπτέμβριος", "Οκτώβριος", "Νοέμβριος", "Δεκέμβριος",
+];
+
+/** 2026-09-28 as Σεπτέμβριος 2026. */
+export function monthName(day: string): string {
+  return `${MONTH_NAMES[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}`;
 }
 
 /** 2026-09-28 as 28/9. */

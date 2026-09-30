@@ -1,10 +1,11 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useState, type ReactNode } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
-import { ApiError } from "@/lib/api";
+import { ConfirmSheet } from "@/components/confirm-sheet";
+import { errorMessage } from "@/lib/api";
 import { minutesUntil, shortDate, weekdayName } from "@/lib/dates";
 import { bookClass, cancelClass, useSchedule } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
@@ -21,6 +22,7 @@ export default function ClassSheet() {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
 
   const sheet = [styles.sheet, { paddingBottom: insets.bottom + spacing.lg }];
   const muted = [typography.body, { color: colors.textMuted }];
@@ -53,9 +55,7 @@ export default function ClassSheet() {
     try {
       await action();
     } catch (e) {
-      setError(
-        e instanceof ApiError ? e.message : "Κάτι πήγε στραβά. Δοκίμασε ξανά.",
-      );
+      setError(errorMessage(e));
     } finally {
       setPending(false);
     }
@@ -70,34 +70,34 @@ export default function ClassSheet() {
   }
 
   function cancel(bookingId: string) {
-    Alert.alert("Ακύρωση κράτησης", "Θέλεις σίγουρα να ακυρώσεις τη θέση σου;", [
-      { text: "Όχι", style: "cancel" },
-      {
-        text: "Ακύρωση κράτησης",
-        style: "destructive",
-        onPress: () =>
-          void run(async () => {
-            setNote(await cancelClass(item!.id, bookingId));
-          }),
-      },
-    ]);
+    void run(async () => {
+      const notice = await cancelClass(item!.id, bookingId);
+      if (notice) {
+        setNote(notice);
+        setAsking(false);
+      } else {
+        router.back();
+      }
+    });
   }
 
   let action: ReactNode = null;
   if (cancelled || item.is_past) {
     action = null;
+  } else if (booking && started) {
+    action = <Text style={muted}>Το μάθημα έχει ξεκινήσει.</Text>;
+  } else if (booking && minutes <= CANCEL_CUTOFF_MINUTES) {
+    action = <Text style={muted}>Η ακύρωση κλείνει μία ώρα πριν από το μάθημα.</Text>;
   } else if (booking) {
-    action = started ? (
-      <Text style={muted}>Το μάθημα έχει ξεκινήσει.</Text>
-    ) : minutes > CANCEL_CUTOFF_MINUTES ? (
+    action = (
       <Button
         label="Ακύρωση κράτησης"
-        tone="danger"
-        onPress={() => cancel(booking.id)}
-        pending={pending}
+        tone="dangerOutline"
+        onPress={() => {
+          setError(null);
+          setAsking(true);
+        }}
       />
-    ) : (
-      <Text style={muted}>Η ακύρωση κλείνει μία ώρα πριν από το μάθημα.</Text>
     );
   } else if (started) {
     action = <Text style={muted}>Το μάθημα έχει ξεκινήσει.</Text>;
@@ -118,6 +118,26 @@ export default function ClassSheet() {
     action = <Button label="Κλείσε θέση" onPress={() => book(false)} pending={pending} />;
   }
 
+  if (booking && asking) {
+    return (
+      <ConfirmSheet
+        icon={{ ios: "calendar.badge.minus", android: "event_busy", web: "event_busy" }}
+        title="Ακύρωση κράτησης"
+        message="Θέλεις σίγουρα να ακυρώσεις τη θέση σου;"
+        detail={`${weekdayName(item.day)} ${shortDate(item.day)} · ${item.start_time} - ${item.end_time}`}
+        confirmLabel="Ναι"
+        cancelLabel="Όχι"
+        onConfirm={() => cancel(booking.id)}
+        onCancel={() => {
+          setError(null);
+          setAsking(false);
+        }}
+        pending={pending}
+        error={error}
+      />
+    );
+  }
+
   return (
     <View style={sheet}>
       <View style={styles.heading}>
@@ -130,22 +150,24 @@ export default function ClassSheet() {
       </View>
 
       <Text style={[typography.headline, { color: colors.text }]}>{types}</Text>
-      <Text style={muted}>{places}</Text>
-
-      {booking && (
-        <Text style={[typography.headline, { color: colors.text }]}>
-          ✓ {item.is_past ? "Είχες κλείσει θέση." : "Έχεις κλείσει θέση."}
-        </Text>
-      )}
-      {note && <Text style={muted}>{note}</Text>}
-      {error && (
+      {error ? (
         <Text
+          selectable
           accessibilityRole="alert"
           style={[typography.body, { color: colors.destructive }]}
         >
           {error}
         </Text>
+      ) : (
+        <Text style={muted}>{places}</Text>
       )}
+
+      {booking && (
+        <Text style={[typography.headline, { color: colors.primary }]}>
+          ✓ {item.is_past ? "Είχες κλείσει θέση." : "Έχεις κλείσει θέση."}
+        </Text>
+      )}
+      {note && <Text style={muted}>{note}</Text>}
 
       {action}
     </View>

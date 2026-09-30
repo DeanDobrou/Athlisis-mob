@@ -1,6 +1,7 @@
 import { getToken, signOut } from "@/lib/session";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL;
+const SOMETHING_WENT_WRONG = "Κάτι πήγε στραβά. Δοκίμασε ξανά.";
 
 /** A refused or failed request, with the message and reply body from the server. */
 export class ApiError extends Error {
@@ -52,13 +53,17 @@ async function request(path: string, options: Options = {}) {
 
   if (!response.ok && response.status !== 304) {
     const reply = (data as { error?: unknown } | null)?.error;
-    const message =
-      typeof reply === "string" ? reply : "Κάτι πήγε στραβά. Δοκίμασε ξανά.";
+    const message = typeof reply === "string" ? reply : SOMETHING_WENT_WRONG;
     if (response.status === 401 && token) await signOut(message);
     throw new ApiError(response.status, message, data);
   }
 
   return { response, data };
+}
+
+/** The message to show for a failed call: the server's own, or a general one. */
+export function errorMessage(e: unknown): string {
+  return e instanceof ApiError ? e.message : SOMETHING_WENT_WRONG;
 }
 
 /** Calls the gym API and returns the JSON reply. */
