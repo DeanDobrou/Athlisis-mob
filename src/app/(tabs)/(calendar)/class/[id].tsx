@@ -8,11 +8,14 @@ import { ConfirmSheet } from "@/components/confirm-sheet";
 import { TypeNames } from "@/components/type-names";
 import { errorMessage } from "@/lib/api";
 import { minutesUntil, shortDate, weekdayName } from "@/lib/dates";
-import { bookClass, cancelClass, useSchedule } from "@/lib/schedule";
+import { bookClass, cancelClass, checkInClass, useSchedule } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
 
 /** Members may cancel until this many minutes before a class, as on the server. */
 const CANCEL_CUTOFF_MINUTES = 60;
+
+/** Members may check in from this many minutes before a class until it ends, as on the server. */
+const CHECK_IN_OPENS_MINUTES = 10;
 
 export default function ClassSheet() {
   const colors = useColors();
@@ -39,8 +42,10 @@ export default function ClassSheet() {
 
   const minutes = minutesUntil(item.day, item.start_time);
   const started = minutes <= 0;
+  const ending = minutesUntil(item.day, item.end_time);
   const cancelled = item.status === "cancelled";
   const booking = cancelled ? null : item.my_booking;
+  const checkedIn = booking?.status === "checked_in";
   const left = Math.max(0, item.capacity - item.booked);
   const places = cancelled
     ? "Το μάθημα ακυρώθηκε."
@@ -81,13 +86,26 @@ export default function ClassSheet() {
     });
   }
 
+  function checkIn(bookingId: string) {
+    void run(() => checkInClass(item!.id, bookingId));
+  }
+
   let action: ReactNode = null;
-  if (cancelled || item.is_past) {
+  if (cancelled || item.is_past || checkedIn) {
     action = null;
+  } else if (booking && minutes <= CHECK_IN_OPENS_MINUTES && ending > 0) {
+    action = (
+      <Button label="Κάνε check-in" onPress={() => checkIn(booking.id)} pending={pending} />
+    );
   } else if (booking && started) {
-    action = <Text style={muted}>Το μάθημα έχει ξεκινήσει.</Text>;
+    action = <Text style={muted}>Το μάθημα έχει τελειώσει.</Text>;
   } else if (booking && minutes <= CANCEL_CUTOFF_MINUTES) {
-    action = <Text style={muted}>Η ακύρωση κλείνει μία ώρα πριν από το μάθημα.</Text>;
+    action = (
+      <Text style={muted}>
+        Η ακύρωση κλείνει μία ώρα πριν από το μάθημα. Το check-in ανοίγει{" "}
+        {CHECK_IN_OPENS_MINUTES} λεπτά πριν.
+      </Text>
+    );
   } else if (booking) {
     action = (
       <Button
@@ -164,7 +182,12 @@ export default function ClassSheet() {
 
       {booking && (
         <Text style={[typography.headline, { color: colors.primary }]}>
-          ✓ {item.is_past ? "Είχες κλείσει θέση." : "Έχεις κλείσει θέση."}
+          ✓{" "}
+          {checkedIn
+            ? "Έκανες check-in."
+            : item.is_past
+              ? "Είχες κλείσει θέση."
+              : "Έχεις κλείσει θέση."}
         </Text>
       )}
       {note && <Text style={muted}>{note}</Text>}

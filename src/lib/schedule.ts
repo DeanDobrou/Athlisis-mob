@@ -178,6 +178,21 @@ export async function cancelClass(
   return reply.notice ?? null;
 }
 
+/**
+ * Checks in to a booking.
+ * A refusal refreshes the schedule, since the phone's copy may be out of date.
+ */
+export async function checkInClass(classId: string, bookingId: string): Promise<void> {
+  try {
+    await api(`/api/bookings/${bookingId}/check-in`, { method: "POST" });
+  } catch (e) {
+    if (e instanceof ApiError) void refreshSchedule();
+    throw e;
+  }
+  patch(classId, (c) => ({ ...c, my_booking: { id: bookingId, status: "checked_in" } }));
+  void refreshSchedule();
+}
+
 onSignOut(() => {
   etag = null;
   cacheRead = false;
