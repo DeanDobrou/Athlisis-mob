@@ -1,21 +1,17 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { SymbolView } from "expo-symbols";
 import { useState, type ReactNode } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Button } from "@/components/button";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { TypeNames } from "@/components/type-names";
 import { errorMessage } from "@/lib/api";
-import { minutesUntil, shortDate, weekdayName } from "@/lib/dates";
+import { minutesUntil, shortDate, timeBefore, weekdayName } from "@/lib/dates";
 import { bookClass, cancelClass, checkInClass, useSchedule } from "@/lib/schedule";
-import { spacing, typography, useColors } from "@/lib/theme";
-
-/** Members may cancel until this many minutes before a class, as on the server. */
-const CANCEL_CUTOFF_MINUTES = 60;
-
-/** Members may check in from this many minutes before a class until it ends, as on the server. */
-const CHECK_IN_OPENS_MINUTES = 10;
+import { radius, spacing, typography, useColors } from "@/lib/theme";
+import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES } from "@/lib/training";
 
 export default function ClassSheet() {
   const colors = useColors();
@@ -52,6 +48,10 @@ export default function ClassSheet() {
     : left === 0
       ? "Το μάθημα είναι γεμάτο."
       : `${left} ${left === 1 ? "ελεύθερη θέση" : "ελεύθερες θέσεις"} από ${item.capacity}`;
+  const rules =
+    !cancelled && !item.is_past && minutes > CANCEL_CUTOFF_MINUTES
+      ? `Ακύρωση έως τις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)} · check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`
+      : null;
 
   async function run(action: () => Promise<void>) {
     setPending(true);
@@ -134,6 +134,47 @@ export default function ClassSheet() {
     );
   } else if (left > 0) {
     action = <Button label="Κλείσε θέση" onPress={() => book(false)} pending={pending} />;
+  } else if (!cancelled) {
+    // Full: offer the nearest class the same day that still has room.
+    const distance = (c: { day: string; start_time: string }) =>
+      Math.abs(minutesUntil(c.day, c.start_time) - minutes);
+    const nearest = (classes ?? [])
+      .filter(
+        (c) =>
+          c.day === item.day &&
+          c.status !== "cancelled" &&
+          !c.my_booking &&
+          c.booked < c.capacity &&
+          minutesUntil(c.day, c.start_time) > 0,
+      )
+      .sort((a, b) => distance(a) - distance(b))[0];
+    if (nearest) {
+      const free = nearest.capacity - nearest.booked;
+      action = (
+        <View style={styles.alternative}>
+          <Text style={[typography.footnote, styles.bold, { color: colors.textMuted }]}>
+            Ελεύθερο την ίδια μέρα
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.setParams({ id: nearest.id })}
+            style={({ pressed }) => [
+              styles.option,
+              { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <Text style={[typography.headline, { color: colors.text }]}>
+              {nearest.start_time} · {free} {free === 1 ? "θέση" : "θέσεις"}
+            </Text>
+            <SymbolView
+              name={{ ios: "chevron.right", android: "chevron_right", web: "chevron_right" }}
+              size={16}
+              tintColor={colors.textMuted}
+            />
+          </Pressable>
+        </View>
+      );
+    }
   }
 
   if (booking && asking) {
@@ -179,6 +220,7 @@ export default function ClassSheet() {
       ) : (
         <Text style={muted}>{places}</Text>
       )}
+      {rules && <Text style={[typography.footnote, { color: colors.textMuted }]}>{rules}</Text>}
 
       {booking && (
         <Text style={[typography.headline, { color: colors.primary }]}>
@@ -200,4 +242,16 @@ export default function ClassSheet() {
 const styles = StyleSheet.create({
   sheet: { padding: spacing.xl, gap: spacing.md },
   heading: { gap: spacing.xs, marginBottom: spacing.xs },
+  bold: { fontWeight: "600" },
+  alternative: { gap: spacing.sm },
+  option: {
+    height: 50,
+    paddingHorizontal: spacing.lg,
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    borderCurve: "continuous",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
 });

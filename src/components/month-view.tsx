@@ -38,14 +38,14 @@ export function MonthGrid({
 }) {
   const colors = useColors();
   const first = weekStart(firstTrainingDay(month));
-  const cellWidth = (width - spacing.lg * 2 - (CARD_PADDING + 1) * 2) / 5;
+  const cellWidth = (width - CARD_PADDING * 2) / 5;
   const rows = Array.from({ length: ROWS }, (_, row) =>
     WEEKDAYS.map((_, column) => addDays(first, row * 7 + column)),
   );
 
   return (
     <View style={[styles.page, { width }]}>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View>
         <View style={styles.row}>
           {WEEKDAYS.map((label) => (
             <Text
@@ -216,14 +216,8 @@ function ClassRow({
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: spacing.lg },
-  card: {
-    padding: CARD_PADDING,
-    paddingTop: spacing.md,
-    borderWidth: 1,
-    borderRadius: radius.xl,
-    borderCurve: "continuous",
-  },
+  // The calendar card around it supplies the background and border.
+  page: { paddingHorizontal: CARD_PADDING, paddingBottom: CARD_PADDING },
   row: { flexDirection: "row" },
   label: { textAlign: "center", paddingBottom: spacing.sm },
   day: { height: DAY_HEIGHT, alignItems: "center", justifyContent: "center" },

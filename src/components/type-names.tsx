@@ -1,4 +1,11 @@
-import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
 
 import type { ClassType } from "@/lib/schedule";
 import { spacing } from "@/lib/theme";
@@ -27,12 +34,12 @@ export function TypeNames({
   );
 }
 
-/** A class's type colours as a row of dots. */
-export function TypeDots({ types }: { types: ClassType[] }) {
+/** A class's type colours as a bar, one segment per type. */
+export function TypeBar({ types, style }: { types: ClassType[]; style: StyleProp<ViewStyle> }) {
   return (
-    <View style={styles.dots}>
+    <View style={[styles.bar, style]}>
       {types.map((t) => (
-        <Dot key={t.id} color={t.color_hex} />
+        <View key={t.id} style={[styles.segment, { backgroundColor: t.color_hex ?? "transparent" }]} />
       ))}
     </View>
   );
@@ -45,6 +52,7 @@ function Dot({ color }: { color: string | null }) {
 const styles = StyleSheet.create({
   names: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.md, rowGap: 2 },
   name: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dots: { flexDirection: "row", gap: 3 },
+  bar: { flexDirection: "row", gap: 2 },
+  segment: { flex: 1, borderRadius: 3 },
   dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
 });

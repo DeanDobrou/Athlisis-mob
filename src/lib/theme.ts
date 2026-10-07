@@ -19,6 +19,10 @@ const light = {
   destructive: "#E7000B",
   destructiveFill: "#E7000B",
   destructiveSoft: "#FEE2E2",
+  /** Behind today's column in the week timetable. */
+  todayTint: "#ECE7E9",
+  /** A class that is filling up. */
+  warning: "#B45309",
 };
 
 export type Colors = typeof light;
@@ -33,11 +37,14 @@ const dark: Colors = {
   border: "#FFFFFF1A",
   primary: "#F0EEEE",
   onPrimary: "#231F20",
-  primarySoft: "#2E2A2B",
+  // Light enough to mark the active tab and today against the dark background.
+  primarySoft: "#4A4345",
   accent: "#2E2A2B",
   destructive: "#FF6467",
   destructiveFill: "#DC2626",
   destructiveSoft: "#450A0A",
+  todayTint: "#2E2A2B",
+  warning: "#F5A524",
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;

@@ -43,9 +43,29 @@ const MONTH_NAMES = [
   "Ιούλιος", "Αύγουστος", "Σεπτέμβριος", "Οκτώβριος", "Νοέμβριος", "Δεκέμβριος",
 ];
 
+/** Months as they follow a date: 5 Οκτωβρίου. */
+const MONTHS_OF = [
+  "Ιανουαρίου", "Φεβρουαρίου", "Μαρτίου", "Απριλίου", "Μαΐου", "Ιουνίου",
+  "Ιουλίου", "Αυγούστου", "Σεπτεμβρίου", "Οκτωβρίου", "Νοεμβρίου", "Δεκεμβρίου",
+];
+
+const SHORT_MONTHS = [
+  "Ιαν", "Φεβ", "Μαρ", "Απρ", "Μαΐ", "Ιουν", "Ιουλ", "Αυγ", "Σεπ", "Οκτ", "Νοε", "Δεκ",
+];
+
 /** 2026-09-28 as Σεπτέμβριος 2026. */
 export function monthName(day: string): string {
   return `${MONTH_NAMES[Number(day.slice(5, 7)) - 1]} ${day.slice(0, 4)}`;
+}
+
+/** A Monday's week as 5 – 9 Οκτωβρίου, or 28 Σεπ – 2 Οκτ when it spans two months. */
+export function weekTitle(week: string): string {
+  const friday = addDays(week, 4);
+  const month = (day: string) => Number(day.slice(5, 7)) - 1;
+  const date = (day: string) => Number(day.slice(8));
+  return month(week) === month(friday)
+    ? `${date(week)} – ${date(friday)} ${MONTHS_OF[month(friday)]}`
+    : `${date(week)} ${SHORT_MONTHS[month(week)]} – ${date(friday)} ${SHORT_MONTHS[month(friday)]}`;
 }
 
 /** 2026-09-28 as 28/9. */
@@ -68,7 +88,18 @@ export function weekdayName(day: string): string {
   return WEEKDAY_NAMES[(new Date(day + "T00:00:00Z").getUTCDay() + 6) % 7];
 }
 
+/** The short weekday name of a Monday-to-Friday date: Πεμ. */
+export function weekdayShort(day: string): string {
+  return WEEKDAYS[(new Date(day + "T00:00:00Z").getUTCDay() + 6) % 7];
+}
+
 /** Minutes from now until a class day and HH:MM start, on the phone's clock. */
-export function minutesUntil(day: string, time: string): number {
-  return (new Date(`${day}T${time}:00`).getTime() - Date.now()) / 60000;
+export function minutesUntil(day: string, time: string, now = new Date()): number {
+  return (new Date(`${day}T${time}:00`).getTime() - now.getTime()) / 60000;
+}
+
+/** An HH:MM time some minutes earlier the same day: 18:00 less 60 is 17:00. */
+export function timeBefore(time: string, minutes: number): string {
+  const total = Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) - minutes;
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
 }
