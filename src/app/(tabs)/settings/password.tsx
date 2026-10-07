@@ -5,6 +5,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Button } from "@/components/button";
 import { PasswordRules } from "@/components/password-rules";
+import { useTabBarSpace } from "@/components/tab-bar";
 import { TextField } from "@/components/text-field";
 import { api, errorMessage } from "@/lib/api";
 import { passwordRules } from "@/lib/password";
@@ -16,6 +17,7 @@ const BOTTOM_OFFSET = 220;
 
 export default function ChangePasswordScreen() {
   const colors = useColors();
+  const tabBarSpace = useTabBarSpace();
   const newRef = useRef<TextInput>(null);
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
@@ -43,7 +45,7 @@ export default function ChangePasswordScreen() {
   return (
     <KeyboardAwareScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
       keyboardShouldPersistTaps="handled"
       bottomOffset={BOTTOM_OFFSET}
     >

@@ -4,6 +4,7 @@ import { StyleSheet, Text, type TextInput } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Button } from "@/components/button";
+import { useTabBarSpace } from "@/components/tab-bar";
 import { TextField } from "@/components/text-field";
 import { TextLink } from "@/components/text-link";
 import { api, errorMessage } from "@/lib/api";
@@ -15,6 +16,7 @@ const BOTTOM_OFFSET = 140;
 
 export default function ChangeEmailScreen() {
   const colors = useColors();
+  const tabBarSpace = useTabBarSpace();
   const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -70,7 +72,7 @@ export default function ChangeEmailScreen() {
   return (
     <KeyboardAwareScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
       keyboardShouldPersistTaps="handled"
       bottomOffset={BOTTOM_OFFSET}
     >

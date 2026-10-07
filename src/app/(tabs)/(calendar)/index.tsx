@@ -26,6 +26,7 @@ import { Button } from "@/components/button";
 import { DayClasses, MonthGrid } from "@/components/month-view";
 import { NextTraining } from "@/components/next-training";
 import { Segmented } from "@/components/segmented";
+import { useTabBarSpace } from "@/components/tab-bar";
 import { WeekLegend, WeekTimetable } from "@/components/week-timetable";
 import {
   addDays,
@@ -86,6 +87,7 @@ function pagesAround(opening: string, classes: MemberClass[], mode: Mode): strin
 
 export default function CalendarScreen() {
   const colors = useColors();
+  const tabBarSpace = useTabBarSpace();
   const { width } = useWindowDimensions();
   // The pages fill the calendar card: the screen less its margins and border.
   const pageWidth = width - (spacing.lg + 1) * 2;
@@ -163,7 +165,7 @@ export default function CalendarScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
       refreshControl={
         <RefreshControl
           refreshing={pulling}

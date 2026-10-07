@@ -4,6 +4,7 @@ import { SymbolView } from "expo-symbols";
 import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { useTabBarSpace } from "@/components/tab-bar";
 import { longDate, today } from "@/lib/dates";
 import { refreshSchedule, useSchedule, type Membership } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
@@ -26,6 +27,7 @@ function terms(m: Membership, now: string): string {
 
 export default function AccountScreen() {
   const colors = useColors();
+  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const { memberships, profile } = useSchedule();
   const [pulling, setPulling] = useState(false);
@@ -42,7 +44,7 @@ export default function AccountScreen() {
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
       refreshControl={
         <RefreshControl
           refreshing={pulling}

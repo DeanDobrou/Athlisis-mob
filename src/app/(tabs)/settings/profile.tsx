@@ -5,6 +5,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Button } from "@/components/button";
 import { DateField } from "@/components/date-field";
+import { useTabBarSpace } from "@/components/tab-bar";
 import { TextField } from "@/components/text-field";
 import { errorMessage } from "@/lib/api";
 import { saveProfile, useSchedule, type Profile } from "@/lib/schedule";
@@ -20,6 +21,7 @@ export default function ProfileScreen() {
 
 function ProfileForm({ profile }: { profile: Profile }) {
   const colors = useColors();
+  const tabBarSpace = useTabBarSpace();
   const lastNameRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const [firstName, setFirstName] = useState(profile.first_name);
@@ -57,7 +59,7 @@ function ProfileForm({ profile }: { profile: Profile }) {
   return (
     <KeyboardAwareScrollView
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
       keyboardShouldPersistTaps="handled"
       bottomOffset={BOTTOM_OFFSET}
     >
