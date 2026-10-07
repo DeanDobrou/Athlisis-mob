@@ -54,6 +54,11 @@ export function shortDate(day: string): string {
   return `${Number(date)}/${Number(month)}`;
 }
 
+/** 2026-09-28 as 28/9/2026. */
+export function longDate(day: string): string {
+  return `${shortDate(day)}/${day.slice(0, 4)}`;
+}
+
 /** The gym trains Monday to Friday. */
 export const WEEKDAYS = ["Δευ", "Τρι", "Τετ", "Πεμ", "Παρ"];
 export const WEEKDAY_NAMES = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];

@@ -54,7 +54,10 @@ async function request(path: string, options: Options = {}) {
   if (!response.ok && response.status !== 304) {
     const reply = (data as { error?: unknown } | null)?.error;
     const message = typeof reply === "string" ? reply : SOMETHING_WENT_WRONG;
-    if (response.status === 401 && token) await signOut(message);
+    // A token replaced meanwhile, by a password change, does not sign out.
+    if (response.status === 401 && token && (options.token || token === getToken())) {
+      await signOut(message);
+    }
     throw new ApiError(response.status, message, data);
   }
 

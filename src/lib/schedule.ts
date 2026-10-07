@@ -20,11 +20,47 @@ export type MemberClass = {
   my_booking: { id: string; status: string } | null;
 };
 
+export type Membership = {
+  id: string;
+  plan_name: string;
+  starts_on: string;
+  ends_on: string | null;
+  visits_remaining: number | null;
+  owed_cents: number | null;
+  state: string;
+};
+
+export type Profile = {
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  date_of_birth: string | null;
+  created_at: string;
+};
+
+type SyncData = {
+  classes: MemberClass[];
+  memberships?: Membership[];
+  profile?: Profile;
+};
+
 type ScheduleState = {
   classes: MemberClass[] | null;
+  memberships: Membership[] | null;
+  profile: Profile | null;
   refreshing: boolean;
   error: string | null;
 };
+
+/** The parts of a sync reply the app shows; an older server leaves memberships and profile out. */
+function shown(data: SyncData) {
+  return {
+    classes: data.classes,
+    memberships: data.memberships ?? null,
+    profile: data.profile ?? null,
+  };
+}
 
 // ponytail: the browser has no file system, so web skips the offline copy
 const cache =
@@ -33,7 +69,13 @@ const cache =
 /** After this long without a check, the next touch refreshes the schedule. */
 const STALE_AFTER_MS = 3 * 60 * 1000;
 
-let state: ScheduleState = { classes: null, refreshing: false, error: null };
+let state: ScheduleState = {
+  classes: null,
+  memberships: null,
+  profile: null,
+  refreshing: false,
+  error: null,
+};
 let etag: string | null = null;
 let cacheRead = false;
 let again = false;
@@ -63,7 +105,7 @@ async function readCache() {
   try {
     const saved = JSON.parse(await cache.text());
     etag = saved.etag ?? null;
-    set({ classes: saved.classes });
+    set(shown(saved));
   } catch {
     etag = null;
   }
@@ -90,7 +132,7 @@ export async function refreshSchedule(): Promise<void> {
   set({ refreshing: true, error: null });
 
   try {
-    const fresh = await apiIfChanged<{ classes: MemberClass[] }>(
+    const fresh = await apiIfChanged<SyncData>(
       "/api/sync",
       etag,
     );
@@ -98,8 +140,8 @@ export async function refreshSchedule(): Promise<void> {
     if (fresh) {
       etag = fresh.etag;
       cache?.create({ overwrite: true });
-      cache?.write(JSON.stringify({ etag, classes: fresh.data.classes }));
-      set({ classes: fresh.data.classes });
+      cache?.write(JSON.stringify({ etag, ...shown(fresh.data) }));
+      set(shown(fresh.data));
     }
     set({ refreshing: false });
   } catch (e) {
@@ -118,6 +160,24 @@ export function refreshIfStale(): void {
   if (getToken() && !state.refreshing && Date.now() - lastAttempt > STALE_AFTER_MS) {
     void refreshSchedule();
   }
+}
+
+/** Saves the member's own details and shows them straight away. */
+export async function saveProfile(
+  details: Pick<Profile, "first_name" | "last_name" | "phone" | "date_of_birth">,
+): Promise<void> {
+  const profile = await api<Profile>("/api/user-profile", { method: "PATCH", body: details });
+  set({ profile });
+  void refreshSchedule();
+}
+
+/** Switches the account to the new email address, with the code that was sent to it. */
+export async function confirmEmail(code: string): Promise<void> {
+  const { email } = await api<{ email: string }>("/api/user-profile/email/confirm", {
+    body: { code },
+  });
+  if (state.profile) set({ profile: { ...state.profile, email } });
+  void refreshSchedule();
 }
 
 function patch(classId: string, change: (c: MemberClass) => MemberClass) {
@@ -198,5 +258,5 @@ onSignOut(() => {
   cacheRead = false;
   again = false;
   if (cache?.exists) cache.delete();
-  set({ classes: null, refreshing: false, error: null });
+  set({ classes: null, memberships: null, profile: null, refreshing: false, error: null });
 });
