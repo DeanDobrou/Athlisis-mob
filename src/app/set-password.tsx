@@ -8,6 +8,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Button } from "@/components/button";
+import { PasswordRules } from "@/components/password-rules";
 import { TextField } from "@/components/text-field";
 import { api, errorMessage } from "@/lib/api";
 import { passwordRules } from "@/lib/password";
@@ -24,8 +25,7 @@ export default function SetPasswordScreen() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const rules = passwordRules(password);
-  const ready = rules.every((rule) => rule.met);
+  const ready = passwordRules(password).every((rule) => rule.met);
 
   async function submit() {
     if (session.status !== "setPassword" || !ready || pending) return;
@@ -75,22 +75,7 @@ export default function SetPasswordScreen() {
         onSubmitEditing={submit}
       />
 
-      <View style={styles.rules}>
-        {rules.map((rule) => (
-          <Text
-            key={rule.label}
-            accessibilityLabel={
-              rule.label + (rule.met ? ", ισχύει" : ", δεν ισχύει ακόμη")
-            }
-            style={[
-              typography.subhead,
-              { color: rule.met ? colors.text : colors.textMuted },
-            ]}
-          >
-            {rule.met ? "✓" : "○"} {rule.label}
-          </Text>
-        ))}
-      </View>
+      <PasswordRules password={password} />
 
       {error ? (
         <Text
@@ -130,6 +115,5 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   heading: { gap: spacing.xs, marginBottom: spacing.sm },
-  rules: { gap: spacing.xs },
   back: { alignSelf: "center", padding: spacing.sm },
 });

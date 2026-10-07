@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { useRef, useState } from "react";
 import {
   StyleSheet,
@@ -9,6 +10,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
+import { TextLink } from "@/components/text-link";
 import { api, errorMessage } from "@/lib/api";
 import { signIn, startSetPassword, useSession } from "@/lib/session";
 import { spacing, typography, useColors } from "@/lib/theme";
@@ -107,15 +109,12 @@ export default function SignInScreen() {
         pending={pending}
       />
 
-      <Text
-        style={[
-          typography.footnote,
-          styles.help,
-          { color: colors.textMuted },
-        ]}
-      >
-        Ξέχασες τον κωδικό σου; Ζήτησε νέο από τη γραμματεία.
-      </Text>
+      <TextLink
+        label="Ξέχασες τον κωδικό;"
+        onPress={() =>
+          router.push({ pathname: "/forgot-password", params: { email: email.trim() } })
+        }
+      />
     </KeyboardAwareScrollView>
   );
 }
@@ -128,5 +127,4 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   heading: { gap: spacing.xs, marginBottom: spacing.sm },
-  help: { textAlign: "center" },
 });

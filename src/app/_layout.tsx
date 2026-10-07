@@ -32,6 +32,7 @@ export default function RootLayout() {
           </Stack.Protected>
           <Stack.Protected guard={session.status === "signedOut"}>
             <Stack.Screen name="sign-in" />
+            <Stack.Screen name="forgot-password" />
           </Stack.Protected>
           <Stack.Protected guard={session.status === "setPassword"}>
             <Stack.Screen name="set-password" />
