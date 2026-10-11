@@ -68,19 +68,19 @@ export function getSession(): Session {
 /**
  * Reads the stored token once at launch. On the first launch after an install
  * it deletes any token first, because the iOS keychain keeps it across
- * uninstalls while the documents folder does not.
+ * uninstalls while the documents folder does not. Any storage failure, that
+ * cleanup included, starts signed out rather than leaving the splash up.
  */
 export function loadSession(): Promise<void> {
   loading ??= (async () => {
-    if (Platform.OS !== "web") {
-      const installed = new File(Paths.document, "installed");
-      if (!installed.exists) {
-        await store.deleteItemAsync(TOKEN_KEY);
-        installed.create();
-      }
-    }
-
     try {
+      if (Platform.OS !== "web") {
+        const installed = new File(Paths.document, "installed");
+        if (!installed.exists) {
+          await store.deleteItemAsync(TOKEN_KEY);
+          installed.create();
+        }
+      }
       const token = await store.getItemAsync(TOKEN_KEY);
       set(token ? { status: "signedIn", token } : { status: "signedOut" });
     } catch {
