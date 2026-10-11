@@ -9,7 +9,7 @@ import { useTabBarSpace } from "@/components/tab-bar";
 import { TextField } from "@/components/text-field";
 import { api, errorMessage } from "@/lib/api";
 import { passwordRules } from "@/lib/password";
-import { signIn } from "@/lib/session";
+import { getSession, signIn } from "@/lib/session";
 import { spacing, typography, useColors } from "@/lib/theme";
 
 /** Space kept under the focused field, so the rules and the button below it stay above the keyboard. */
@@ -31,9 +31,12 @@ export default function ChangePasswordScreen() {
     setPending(true);
     setError(null);
     try {
+      const from = getSession();
       const reply = await api<{ token: string }>("/api/user-profile/password", {
         body: { currentPassword: current, newPassword: password },
       });
+      // Signed out meanwhile: the new token must not sign this member back in.
+      if (getSession() !== from) return;
       await signIn(reply.token);
       router.back();
     } catch (e) {

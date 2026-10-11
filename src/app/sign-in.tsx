@@ -12,7 +12,7 @@ import { Button } from "@/components/button";
 import { TextField } from "@/components/text-field";
 import { TextLink } from "@/components/text-link";
 import { api, errorMessage } from "@/lib/api";
-import { signIn, startSetPassword, useSession } from "@/lib/session";
+import { getSession, signIn, startSetPassword, useSession } from "@/lib/session";
 import { spacing, typography, useColors } from "@/lib/theme";
 
 /** Space kept under the focused field, so the button below the password stays above the keyboard. */
@@ -36,10 +36,13 @@ export default function SignInScreen() {
     setPending(true);
     setError(null);
     try {
+      const from = getSession();
       const reply = await api<{ token?: string; setPasswordToken?: string }>(
         "/api/auth/login",
         { body: { email, password } },
       );
+      // Signed in another way meanwhile, say through a password reset: leave that session be.
+      if (getSession() !== from) return;
       if (reply.setPasswordToken) startSetPassword(reply.setPasswordToken);
       else if (reply.token) await signIn(reply.token);
     } catch (e) {

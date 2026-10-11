@@ -51,6 +51,20 @@ export function getToken(): string | null {
   return session.status === "signedIn" ? session.token : null;
 }
 
+/** The token the session is using: the signed-in one, or the one that can only set a first password. */
+export function sessionToken(): string | null {
+  if (session.status === "signedIn") return session.token;
+  return session.status === "setPassword" ? session.setPasswordToken : null;
+}
+
+/**
+ * The current session. It is a new object on every change, so comparing it
+ * before and after a request tells whether anyone signed in or out meanwhile.
+ */
+export function getSession(): Session {
+  return session;
+}
+
 /**
  * Reads the stored token once at launch. On the first launch after an install
  * it deletes any token first, because the iOS keychain keeps it across

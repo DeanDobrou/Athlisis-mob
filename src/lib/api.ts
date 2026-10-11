@@ -1,4 +1,4 @@
-import { getToken, signOut } from "@/lib/session";
+import { getToken, sessionToken, signOut } from "@/lib/session";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL;
 const SOMETHING_WENT_WRONG = "Κάτι πήγε στραβά. Δοκίμασε ξανά.";
@@ -24,7 +24,8 @@ type Options = {
 /**
  * Sends a request with the signed-in token, or the one given. Throws ApiError
  * with the message from the server for anything but a success or a 304. A 401
- * on a request that sent a token signs out and shows that message at sign-in.
+ * signs out and shows that message at sign-in, if the token it sent is still
+ * the one the session uses.
  */
 async function request(path: string, options: Options = {}) {
   if (!baseUrl) {
@@ -54,8 +55,9 @@ async function request(path: string, options: Options = {}) {
   if (!response.ok && response.status !== 304) {
     const reply = (data as { error?: unknown } | null)?.error;
     const message = typeof reply === "string" ? reply : SOMETHING_WENT_WRONG;
-    // A token replaced meanwhile, by a password change, does not sign out.
-    if (response.status === 401 && token && (options.token || token === getToken())) {
+    // Not for a token the session has moved on from: one a password change
+    // replaced, or a first-password token from a step the member backed out of.
+    if (response.status === 401 && token && token === sessionToken()) {
       await signOut(message);
     }
     throw new ApiError(response.status, message, data);

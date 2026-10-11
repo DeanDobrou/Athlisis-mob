@@ -80,6 +80,11 @@ let etag: string | null = null;
 let cacheRead = false;
 let again = false;
 let lastAttempt = 0;
+/**
+ * Counts sign-outs, so a reply that lands after one is not applied to the next
+ * member. Not the token: a password change replaces it for the same member.
+ */
+let session = 0;
 const listeners = new Set<() => void>();
 
 function set(next: Partial<ScheduleState>) {
@@ -127,6 +132,7 @@ export async function refreshSchedule(): Promise<void> {
     again = true;
     return;
   }
+  const started = session;
   const token = getToken();
   lastAttempt = Date.now();
   set({ refreshing: true, error: null });
@@ -136,7 +142,9 @@ export async function refreshSchedule(): Promise<void> {
       "/api/sync",
       etag,
     );
-    if (getToken() !== token) return;
+    // Signed out meanwhile: the reset already ran, and a newer refresh may own the state.
+    if (session !== started) return;
+    // A password change only replaced the token: this is still the member's schedule.
     if (fresh) {
       etag = fresh.etag;
       cache?.create({ overwrite: true });
@@ -145,8 +153,11 @@ export async function refreshSchedule(): Promise<void> {
     }
     set({ refreshing: false });
   } catch (e) {
-    if (getToken() !== token) return;
-    set({ refreshing: false, error: errorMessage(e) });
+    if (session !== started) return;
+    // Failed on a token a password change has since replaced: try again with the new one.
+    const replaced = getToken() !== token;
+    if (replaced) again = true;
+    set({ refreshing: false, error: replaced ? null : errorMessage(e) });
   }
 
   if (again) {
@@ -162,20 +173,32 @@ export function refreshIfStale(): void {
   }
 }
 
+/**
+ * Throws if the member who sent a request has signed out since, so neither the
+ * store nor the screen that asked acts on a reply meant for someone else.
+ */
+function stillSignedIn(started: number): void {
+  if (session !== started) throw new Error("Αποσυνδέθηκες.");
+}
+
 /** Saves the member's own details and shows them straight away. */
 export async function saveProfile(
   details: Pick<Profile, "first_name" | "last_name" | "phone" | "date_of_birth">,
 ): Promise<void> {
+  const started = session;
   const profile = await api<Profile>("/api/user-profile", { method: "PATCH", body: details });
+  stillSignedIn(started);
   set({ profile });
   void refreshSchedule();
 }
 
 /** Switches the account to the new email address, with the code that was sent to it. */
 export async function confirmEmail(code: string): Promise<void> {
+  const started = session;
   const { email } = await api<{ email: string }>("/api/user-profile/email/confirm", {
     body: { code },
   });
+  stillSignedIn(started);
   if (state.profile) set({ profile: { ...state.profile, email } });
   void refreshSchedule();
 }
@@ -193,10 +216,12 @@ export async function bookClass(
   classId: string,
   confirmUnpaid: boolean,
 ): Promise<{ confirm: string } | null> {
+  const started = session;
   try {
     const { id } = await api<{ id: string }>("/api/bookings", {
       body: { classId, confirm: confirmUnpaid },
     });
+    stillSignedIn(started);
     patch(classId, (c) => ({
       ...c,
       booked: c.booked + 1,
@@ -220,6 +245,7 @@ export async function cancelClass(
   classId: string,
   bookingId: string,
 ): Promise<string | null> {
+  const started = session;
   let reply: { notice?: string };
   try {
     reply = await api<{ notice?: string }>("/api/bookings/" + bookingId, {
@@ -229,6 +255,7 @@ export async function cancelClass(
     if (e instanceof ApiError) void refreshSchedule();
     throw e;
   }
+  stillSignedIn(started);
   patch(classId, (c) => ({
     ...c,
     booked: Math.max(0, c.booked - 1),
@@ -243,17 +270,20 @@ export async function cancelClass(
  * A refusal refreshes the schedule, since the phone's copy may be out of date.
  */
 export async function checkInClass(classId: string, bookingId: string): Promise<void> {
+  const started = session;
   try {
     await api(`/api/bookings/${bookingId}/check-in`, { method: "POST" });
   } catch (e) {
     if (e instanceof ApiError) void refreshSchedule();
     throw e;
   }
+  stillSignedIn(started);
   patch(classId, (c) => ({ ...c, my_booking: { id: bookingId, status: "checked_in" } }));
   void refreshSchedule();
 }
 
 onSignOut(() => {
+  session += 1;
   etag = null;
   cacheRead = false;
   again = false;

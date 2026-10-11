@@ -9,7 +9,7 @@ import { TextField } from "@/components/text-field";
 import { TextLink } from "@/components/text-link";
 import { api, errorMessage } from "@/lib/api";
 import { passwordRules } from "@/lib/password";
-import { signIn } from "@/lib/session";
+import { getSession, signIn } from "@/lib/session";
 import { spacing, typography, useColors } from "@/lib/theme";
 
 /** Space kept under the focused field, so the rules and the button below it stay above the keyboard. */
@@ -57,9 +57,12 @@ export default function ForgotPasswordScreen() {
     if (!canSave || !sentTo) return;
     // Signing in swaps this screen for the app, so nothing follows it here.
     void run(async () => {
+      const from = getSession();
       const { token } = await api<{ token: string }>("/api/auth/reset-password", {
         body: { email: sentTo, code, password },
       });
+      // Someone signed in another way meanwhile: this reply must not replace them.
+      if (getSession() !== from) return;
       await signIn(token);
     });
   }

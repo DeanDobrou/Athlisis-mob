@@ -12,7 +12,7 @@ import { PasswordRules } from "@/components/password-rules";
 import { TextField } from "@/components/text-field";
 import { api, errorMessage } from "@/lib/api";
 import { passwordRules } from "@/lib/password";
-import { signIn, signOut, useSession } from "@/lib/session";
+import { getSession, signIn, signOut, useSession } from "@/lib/session";
 import { spacing, typography, useColors } from "@/lib/theme";
 
 /** Space kept under the password field, so the rules and the button below it stay above the keyboard. */
@@ -32,10 +32,13 @@ export default function SetPasswordScreen() {
     setPending(true);
     setError(null);
     try {
+      const from = getSession();
       const reply = await api<{ token: string }>("/api/auth/set-password", {
         body: { newPassword: password },
         token: session.setPasswordToken,
       });
+      // Backed out meanwhile: this attempt is over, so its reply signs no one in.
+      if (getSession() !== from) return;
       await signIn(reply.token);
     } catch (e) {
       setError(errorMessage(e));
