@@ -1,21 +1,27 @@
 import { Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { loadSession, useSession } from "@/lib/session";
-import { useNavigationTheme } from "@/lib/theme";
+import { useColors, useNavigationTheme } from "@/lib/theme";
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const session = useSession();
   const theme = useNavigationTheme();
+  const colors = useColors();
 
   useEffect(() => {
     void loadSession();
   }, []);
+
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(colors.groupedBackground);
+  }, [colors.groupedBackground]);
 
   useEffect(() => {
     if (session.status !== "loading") SplashScreen.hide();
