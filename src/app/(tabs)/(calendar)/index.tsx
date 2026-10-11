@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import Animated, {
+  cubicBezier,
   Easing,
   FadeIn,
   FadeInLeft,
@@ -49,6 +50,7 @@ import { spacing, typography, useColors } from "@/lib/theme";
 type Mode = "week" | "month";
 
 const EASE_OUT = Easing.bezier(0.23, 1, 0.32, 1);
+const RESIZE = cubicBezier(0.23, 1, 0.32, 1);
 const NO_CLASSES: MemberClass[] = [];
 
 const MODES = {
@@ -129,9 +131,12 @@ export default function CalendarScreen() {
   const found = pages.indexOf(pageOf(focused));
   const current = found === -1 ? openingIndex : found;
   const page = pages[current];
-  // Which way the last move went, so the date range slides in from that side.
   const [moved, setMoved] = useState({ page, forward: true });
   if (moved.page !== page) setMoved({ page, forward: page > moved.page });
+  const [heights, setHeights] = useState<Record<string, number>>({});
+  const measure = useCallback((key: string, height: number) => {
+    setHeights((all) => (all[key] === height ? all : { ...all, [key]: height }));
+  }, []);
 
   useEffect(() => {
     void loadSchedule();
@@ -204,15 +209,23 @@ export default function CalendarScreen() {
               {title(page)}
             </Animated.Text>
           </LayoutAnimationConfig>
-          {focused !== start && (
+          {current !== openingIndex && (
             <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(140)}>
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Σήμερα"
                 onPress={() => goTo(openingIndex)}
-                hitSlop={spacing.sm}
-                style={[styles.today, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={({ pressed }) => [styles.today, { opacity: pressed ? 0.5 : 1 }]}
               >
-                <Text style={[typography.footnote, styles.bold, { color: colors.text }]}>Σήμερα</Text>
+                <SymbolView
+                  name={
+                    current < openingIndex
+                      ? { ios: "arrow.uturn.forward", android: "redo", web: "redo" }
+                      : { ios: "arrow.uturn.backward", android: "undo", web: "undo" }
+                  }
+                  size={20}
+                  tintColor={colors.text}
+                />
               </Pressable>
             </Animated.View>
           )}
@@ -259,51 +272,61 @@ export default function CalendarScreen() {
               key={mode}
               entering={(mode === "month" ? FadeInRight : FadeInLeft).duration(200).easing(EASE_OUT)}
             >
-              <FlatList
-                key={`${mode}:${pages[0]}:${pages.length}`}
-                ref={list}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                data={pages}
-                keyExtractor={(item) => item}
-                initialScrollIndex={current}
-                // Only the page on screen and one either side exist; the default
-                // (21 screens, 10 up front) built every past week at once and made the week
-                // view slow to open. A very fast run of arrow taps may show an empty page for a frame.
-                initialNumToRender={1}
-                maxToRenderPerBatch={1}
-                windowSize={3}
-                getItemLayout={(_, index) => ({
-                  length: pageWidth,
-                  offset: pageWidth * index,
-                  index,
-                })}
-                onMomentumScrollEnd={(e) => {
-                  const target = pages[Math.round(e.nativeEvent.contentOffset.x / pageWidth)];
-                  if (target !== page) setFocus(focusFor(target));
+              <Animated.View
+                style={{
+                  height: heights[`${mode}:${page}`],
+                  overflow: "hidden",
+                  transitionProperty: "height",
+                  transitionDuration: 250,
+                  transitionTimingFunction: RESIZE,
                 }}
-                renderItem={({ item }) =>
-                  mode === "week" ? (
-                    <WeekTimetable
-                      week={item}
-                      classes={byWeek.get(item) ?? NO_CLASSES}
-                      width={pageWidth}
-                      today={day}
-                      onOpen={open}
-                    />
-                  ) : (
-                    <MonthGrid
-                      month={item}
-                      byDay={byDay}
-                      width={pageWidth}
-                      today={day}
-                      selected={focused}
-                      onSelect={setFocus}
-                    />
-                  )
-                }
-              />
+              >
+                <FlatList
+                  key={`${mode}:${pages[0]}:${pages.length}`}
+                  ref={list}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pages}
+                  data={pages}
+                  keyExtractor={(item) => item}
+                  initialScrollIndex={current}
+                  initialNumToRender={1}
+                  maxToRenderPerBatch={1}
+                  windowSize={3}
+                  getItemLayout={(_, index) => ({
+                    length: pageWidth,
+                    offset: pageWidth * index,
+                    index,
+                  })}
+                  onMomentumScrollEnd={(e) => {
+                    const target = pages[Math.round(e.nativeEvent.contentOffset.x / pageWidth)];
+                    if (target !== page) setFocus(focusFor(target));
+                  }}
+                  renderItem={({ item }) => (
+                    <View onLayout={(e) => measure(`${mode}:${item}`, e.nativeEvent.layout.height)}>
+                      {mode === "week" ? (
+                        <WeekTimetable
+                          week={item}
+                          classes={byWeek.get(item) ?? NO_CLASSES}
+                          width={pageWidth}
+                          today={day}
+                          onOpen={open}
+                        />
+                      ) : (
+                        <MonthGrid
+                          month={item}
+                          byDay={byDay}
+                          width={pageWidth}
+                          today={day}
+                          selected={focused}
+                          onSelect={setFocus}
+                        />
+                      )}
+                    </View>
+                  )}
+                />
+              </Animated.View>
             </Animated.View>
           </LayoutAnimationConfig>
         )}
@@ -370,7 +393,6 @@ function PageArrow({
 const styles = StyleSheet.create({
   content: { paddingVertical: spacing.md, gap: spacing.md },
   modes: { paddingHorizontal: spacing.lg },
-  // The same card as the next training above it.
   calendar: {
     marginHorizontal: spacing.lg,
     borderWidth: 1,
@@ -387,15 +409,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   rule: { height: 1, marginHorizontal: 14, marginBottom: spacing.sm },
+  pages: { alignItems: "flex-start" },
   range: { flex: 1, fontVariant: ["tabular-nums"] },
-  bold: { fontWeight: "600" },
-  today: {
-    height: 32,
-    paddingHorizontal: spacing.md,
-    borderRadius: 16,
-    borderWidth: 1,
-    justifyContent: "center",
-  },
+  today: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   arrow: {
     width: 44,
     height: 44,
