@@ -24,7 +24,7 @@ export default function ClassSheet() {
   const [confirm, setConfirm] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
 
-  const sheet = [styles.sheet, { paddingBottom: insets.bottom + spacing.lg }];
+  const sheet =[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }];
   const muted = [typography.body, { color: colors.textMuted }];
   const item = classes?.find((c) => c.id === id);
 
@@ -39,13 +39,16 @@ export default function ClassSheet() {
   const minutes = minutesUntil(item.day, item.start_time);
   const started = minutes <= 0;
   const ending = minutesUntil(item.day, item.end_time);
+  const ended = item.is_past || ending <= 0;
   const cancelled = item.status === "cancelled";
   const booking = cancelled ? null : item.my_booking;
   const checkedIn = booking?.status === "checked_in";
   const left = Math.max(0, item.capacity - item.booked);
   const places = cancelled
     ? "Το μάθημα ακυρώθηκε."
-    : left === 0
+    : ended
+      ? "Το μάθημα ολοκληρώθηκε."
+      : left === 0
       ? "Το μάθημα είναι γεμάτο."
       : `${left} ${left === 1 ? "ελεύθερη θέση" : "ελεύθερες θέσεις"} από ${item.capacity}`;
   const rules =
@@ -91,14 +94,12 @@ export default function ClassSheet() {
   }
 
   let action: ReactNode = null;
-  if (cancelled || item.is_past || checkedIn) {
+  if (cancelled || ended || checkedIn) {
     action = null;
-  } else if (booking && minutes <= CHECK_IN_OPENS_MINUTES && ending > 0) {
+  } else if (booking && minutes <= CHECK_IN_OPENS_MINUTES) {
     action = (
       <Button label="Κάνε check-in" onPress={() => checkIn(booking.id)} pending={pending} />
     );
-  } else if (booking && started) {
-    action = <Text style={muted}>Το μάθημα έχει τελειώσει.</Text>;
   } else if (booking && minutes <= CANCEL_CUTOFF_MINUTES) {
     action = (
       <Text style={muted}>
@@ -135,7 +136,6 @@ export default function ClassSheet() {
   } else if (left > 0) {
     action = <Button label="Κλείσε θέση" onPress={() => book(false)} pending={pending} />;
   } else if (!cancelled) {
-    // Full: offer the nearest class the same day that still has room.
     const distance = (c: { day: string; start_time: string }) =>
       Math.abs(minutesUntil(c.day, c.start_time) - minutes);
     const nearest = (classes ?? [])
