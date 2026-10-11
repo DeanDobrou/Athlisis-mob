@@ -8,6 +8,7 @@ import { Button } from "@/components/button";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { TypeNames } from "@/components/type-names";
 import { errorMessage } from "@/lib/api";
+import { useClock } from "@/lib/clock";
 import { minutesUntil, shortDate, timeBefore, weekdayName } from "@/lib/dates";
 import { bookClass, cancelClass, checkInClass, useSchedule } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
@@ -23,6 +24,8 @@ export default function ClassSheet() {
   const [note, setNote] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  // Check-in, the cancel cutoff and the start are read off this clock below.
+  const now = useClock();
 
   const sheet =[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }];
   const muted = [typography.body, { color: colors.textMuted }];
@@ -36,9 +39,9 @@ export default function ClassSheet() {
     );
   }
 
-  const minutes = minutesUntil(item.day, item.start_time);
+  const minutes = minutesUntil(item.day, item.start_time, now);
   const started = minutes <= 0;
-  const ending = minutesUntil(item.day, item.end_time);
+  const ending = minutesUntil(item.day, item.end_time, now);
   const ended = item.is_past || ending <= 0;
   const cancelled = item.status === "cancelled";
   const booking = cancelled ? null : item.my_booking;
@@ -137,7 +140,7 @@ export default function ClassSheet() {
     action = <Button label="Κλείσε θέση" onPress={() => book(false)} pending={pending} />;
   } else if (!cancelled) {
     const distance = (c: { day: string; start_time: string }) =>
-      Math.abs(minutesUntil(c.day, c.start_time) - minutes);
+      Math.abs(minutesUntil(c.day, c.start_time, now) - minutes);
     const nearest = (classes ?? [])
       .filter(
         (c) =>
@@ -145,7 +148,7 @@ export default function ClassSheet() {
           c.status !== "cancelled" &&
           !c.my_booking &&
           c.booked < c.capacity &&
-          minutesUntil(c.day, c.start_time) > 0,
+          minutesUntil(c.day, c.start_time, now) > 0,
       )
       .sort((a, b) => distance(a) - distance(b))[0];
     if (nearest) {

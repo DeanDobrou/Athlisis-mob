@@ -1,9 +1,10 @@
 import { SymbolView } from "expo-symbols";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { TypeNames } from "@/components/type-names";
 import { errorMessage } from "@/lib/api";
+import { useClock } from "@/lib/clock";
 import {
   addDays,
   minutesUntil,
@@ -18,10 +19,10 @@ import { spacing, typography, useColors } from "@/lib/theme";
 import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES, nextTraining } from "@/lib/training";
 
 /** Σήμερα, Αύριο, or the weekday and date further ahead. */
-function dayWord(day: string): string {
-  const now = today();
-  if (day === now) return "Σήμερα";
-  if (day === addDays(now, 1)) return "Αύριο";
+function dayWord(day: string, now: Date): string {
+  const date = today(now);
+  if (day === date) return "Σήμερα";
+  if (day === addDays(date, 1)) return "Αύριο";
   return `${weekdayName(day)} ${shortDate(day)}`;
 }
 
@@ -38,19 +39,13 @@ export function NextTraining({
 }) {
   const colors = useColors();
   const [pending, setPending] = useState(false);
-  const [, setTick] = useState(0);
+  const now = useClock();
 
-  // Re-reads the clock every 30 s so check-in opens on time.
-  useEffect(() => {
-    const timer = setInterval(() => setTick((n) => n + 1), 30_000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const next = nextTraining(classes);
+  const next = nextTraining(classes, now);
   if (!next) return null;
 
   const { item } = next;
-  const word = dayWord(item.day);
+  const word = dayWord(item.day, now);
   const title = `${word}, ${item.start_time}`;
   const onInk = { color: colors.onPrimary };
 
@@ -121,7 +116,7 @@ export function NextTraining({
 
   const midSentence = word === "Σήμερα" || word === "Αύριο" ? word.toLowerCase() : word;
   const note =
-    minutesUntil(item.day, item.start_time) > CANCEL_CUTOFF_MINUTES
+    minutesUntil(item.day, item.start_time, now) > CANCEL_CUTOFF_MINUTES
       ? `Ακύρωση έως ${midSentence} στις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)}`
       : `Check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`;
 
