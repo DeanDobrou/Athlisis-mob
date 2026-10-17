@@ -6,24 +6,9 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 
 import { useTabBarSpace } from "@/components/tab-bar";
 import { longDate, today } from "@/lib/dates";
+import { groupMemberships, money, standing } from "@/lib/memberships";
 import { refreshSchedule, useSchedule, type Membership } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
-
-const money = new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" });
-
-/** What a membership gives, in one line: when it starts or ends, and the visits left. */
-function terms(m: Membership, now: string): string {
-  const parts: string[] = [];
-  if (m.starts_on > now) parts.push(`Ξεκινά ${longDate(m.starts_on)}`);
-  if (m.ends_on) parts.push(`${m.ends_on < now ? "Έληξε" : "Έως"} ${longDate(m.ends_on)}`);
-  if (m.visits_remaining !== null) {
-    const n = m.visits_remaining;
-    parts.push(`${n} ${n === 1 ? "επίσκεψη" : "επισκέψεις"} ακόμη`);
-  } else if (!m.ends_on) {
-    parts.push("Χωρίς λήξη");
-  }
-  return parts.join(" · ");
-}
 
 export default function AccountScreen() {
   const colors = useColors();
@@ -31,7 +16,6 @@ export default function AccountScreen() {
   const router = useRouter();
   const { memberships, profile } = useSchedule();
   const [pulling, setPulling] = useState(false);
-  const now = today();
   const group = [styles.group, { backgroundColor: colors.surface }];
   const muted = { color: colors.textMuted };
 
@@ -54,35 +38,7 @@ export default function AccountScreen() {
         />
       }
     >
-      {memberships && (
-        <View style={styles.section}>
-          <Text style={[typography.footnote, styles.header, muted]}>Συνδρομή</Text>
-          <View style={group}>
-            {memberships.length === 0 ? (
-              <View style={styles.row}>
-                <Text style={[typography.body, { color: colors.text }]}>
-                  Δεν έχεις ενεργή συνδρομή.
-                </Text>
-              </View>
-            ) : (
-              memberships.map((m, i) => (
-                <View key={m.id}>
-                  {i > 0 && <Divider />}
-                  <View style={styles.row}>
-                    <Text style={[typography.headline, { color: colors.text }]}>{m.plan_name}</Text>
-                    <Text style={[typography.subhead, muted]}>{terms(m, now)}</Text>
-                    {m.owed_cents !== null && (
-                      <Text style={[typography.subhead, { color: colors.destructive }]}>
-                        Οφείλεις {money.format(m.owed_cents / 100)}.
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        </View>
-      )}
+      {memberships && <MembershipCard memberships={memberships} />}
 
       <View style={group}>
         {profile && (
@@ -108,6 +64,72 @@ export default function AccountScreen() {
         Athlisis {Constants.expoConfig?.version}
       </Text>
     </ScrollView>
+  );
+}
+
+/**
+ * One card for the member's memberships, however many there are: the one
+ * running now, the next one, and everything owed added up. The rest is a tap away.
+ */
+function MembershipCard({ memberships }: { memberships: Membership[] }) {
+  const colors = useColors();
+  const router = useRouter();
+  const now = today();
+  const { current, upcoming, owedCents } = groupMemberships(memberships, now);
+  const main = current[0];
+  const state = main && standing(main, now);
+  const others = current.length - 1;
+  const muted = [typography.subhead, { color: colors.textMuted }];
+
+  return (
+    <View style={styles.section}>
+      <Text style={[typography.footnote, styles.header, { color: colors.textMuted }]}>Συνδρομή</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Δες όλες τις συνδρομές και το ιστορικό"
+        onPress={() => router.push("/settings/memberships")}
+        style={({ pressed }) => [
+          styles.group,
+          styles.link,
+          { backgroundColor: pressed ? colors.accent : colors.surface },
+        ]}
+      >
+        <View style={[styles.grow, styles.lines]}>
+          <Text style={[typography.headline, { color: colors.text }]}>
+            {main ? main.plan_name : "Καμία ενεργή συνδρομή"}
+          </Text>
+          {state && (
+            <Text
+              style={[
+                typography.subhead,
+                state.ending && styles.bold,
+                { color: state.ending ? colors.warning : colors.textMuted },
+              ]}
+            >
+              {state.text}
+            </Text>
+          )}
+          {others > 0 && (
+            <Text style={muted}>
+              +{others} ακόμη {others === 1 ? "ενεργή" : "ενεργές"}
+            </Text>
+          )}
+          {upcoming[0] && (
+            <Text style={muted}>
+              Επόμενη: {upcoming[0].plan_name} από {longDate(upcoming[0].starts_on)}
+            </Text>
+          )}
+          {owedCents > 0 && (
+            <Text style={[typography.subhead, styles.bold, { color: colors.destructive }]}>
+              Οφειλή {money.format(owedCents / 100)}
+            </Text>
+          )}
+        </View>
+        {process.env.EXPO_OS === "ios" && (
+          <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -148,6 +170,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   grow: { flex: 1 },
+  lines: { gap: 2 },
+  bold: { fontWeight: "600" },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: spacing.lg },
   version: { textAlign: "center" },
 });

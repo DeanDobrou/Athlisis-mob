@@ -14,6 +14,10 @@ export default function SettingsLayout() {
         options={{ title: "Αλλαγή κωδικού", headerLargeTitleEnabled: false }}
       />
       <Stack.Screen name="email" options={{ title: "Αλλαγή email", headerLargeTitleEnabled: false }} />
+      <Stack.Screen
+        name="memberships"
+        options={{ title: "Συνδρομή", headerLargeTitleEnabled: false }}
+      />
       <Stack.Screen name="sign-out" options={sheetOptions(colors)} />
     </Stack>
   );
