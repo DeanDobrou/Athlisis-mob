@@ -21,7 +21,8 @@ type Call = {
 const waiting: Call[] = [];
 
 globalThis.fetch = ((url: string, init: RequestInit = {}) =>
-  new Promise<Response>((resolve) => {
+  new Promise<Response>((resolve, reject) => {
+    init.signal?.addEventListener("abort", reject);
     const auth = (init.headers as Record<string, string> | undefined)?.Authorization;
     waiting.push({
       path: url.replace(process.env.EXPO_PUBLIC_API_URL ?? "", ""),
@@ -161,6 +162,24 @@ const scenarios: [string, () => Promise<string | null>][] = [
       (await take("/api/auth/set-password")).reply(401, { error: "Η σύνδεση έληξε." });
       await outcome(choosing);
       return useSession().status === "signedOut" ? null : "stayed on the first-password step";
+    },
+  ],
+  [
+    "a request the server never answers gives up instead of freezing the schedule",
+    async () => {
+      await fresh("anna");
+      // Holds back the request timeout so the check can run it out at once.
+      const realSetTimeout = globalThis.setTimeout;
+      const timeouts: (() => void)[] = [];
+      globalThis.setTimeout = ((fn: () => void, ms?: number) =>
+        ms ? timeouts.push(fn) : realSetTimeout(fn)) as unknown as typeof setTimeout;
+      const refresh = refreshSchedule();
+      await take("/api/sync").finally(() => (globalThis.setTimeout = realSetTimeout));
+      timeouts.forEach((run) => run());
+      await tick();
+      if (useSchedule().refreshing) return "still marked as refreshing";
+      await refresh;
+      return useSchedule().error ? null : "showed no error";
     },
   ],
 ];
