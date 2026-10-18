@@ -34,6 +34,19 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ef911840-2110-434e-b3cb-ecf87864f378"
+      }
+    },
+    "owner": "dobroudev",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ef911840-2110-434e-b3cb-ecf87864f378"
     }
   }
 }
