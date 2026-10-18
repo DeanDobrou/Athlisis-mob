@@ -53,8 +53,8 @@ const dark: Colors = {
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
-/** Corner radii, from the admin panel's 10px base. */
-export const radius = { md: 8, lg: 10, xl: 14 } as const;
+/** Corner radius, from the admin panel's 10px base. */
+export const radius = { lg: 10 } as const;
 
 /** Text sizes, drawn in the phone's system font. */
 export const typography = {
