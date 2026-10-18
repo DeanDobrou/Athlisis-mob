@@ -1,51 +1,36 @@
-import { useEffect, useState, type ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { useTabBarSpace } from "@/components/tab-bar";
+import { Section } from "@/components/section";
+import { TabScroll } from "@/components/tab-scroll";
 import { api, errorMessage } from "@/lib/api";
+import type { HistoryPage, Membership, PastMembership } from "@/lib/contract";
 import { longDate, today } from "@/lib/dates";
 import { groupMemberships, money, standing } from "@/lib/memberships";
-import { refreshSchedule, useSchedule, type Membership } from "@/lib/schedule";
-import { radius, spacing, typography, useColors } from "@/lib/theme";
+import { refreshSchedule, useSchedule } from "@/lib/schedule";
+import { spacing, typography, useColors } from "@/lib/theme";
 
-/** A paid membership that is over, as GET /api/user-profile/memberships sends it. */
-type PastMembership = {
-  id: string;
-  plan_name: string;
-  starts_on: string;
-  ends_on: string | null;
-  amount_cents: number;
-  method: "cash" | "pos_terminal" | "other";
-  paid_on: string;
+const METHODS: Record<PastMembership["method"], string> = {
+  cash: "Μετρητά",
+  pos_terminal: "Κάρτα",
+  other: "Άλλος τρόπος",
 };
-
-const METHODS = { cash: "Μετρητά", pos_terminal: "Κάρτα", other: "Άλλος τρόπος" };
 
 type Line = { text: string; tone?: "muted" | "warning" | "danger" };
 
 /** Every membership: running, upcoming, still owed, and the paid history page by page. */
 export default function MembershipsScreen() {
   const colors = useColors();
-  const tabBarSpace = useTabBarSpace();
   const { memberships } = useSchedule();
   const [history, setHistory] = useState<PastMembership[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pulling, setPulling] = useState(false);
   const now = today();
 
   /** Fetches the first page of history, or the page after `before`, and shows it when it lands. */
   function fetchPage(before: string | null) {
-    return api<{ memberships: PastMembership[]; next: string | null }>(
+    return api<HistoryPage>(
       "/api/user-profile/memberships" + (before ? `?before=${encodeURIComponent(before)}` : ""),
     )
       .then(
@@ -69,28 +54,14 @@ export default function MembershipsScreen() {
     void fetchPage(null);
   }, []);
 
-  async function pull() {
-    setPulling(true);
-    await Promise.all([refreshSchedule(), load(null)]);
-    setPulling(false);
-  }
-
   const groups = memberships && groupMemberships(memberships, now);
   const owed = (m: Membership): Line[] =>
     m.owed_cents === null ? [] : [{ text: `Οφείλεις ${money.format(m.owed_cents / 100)}`, tone: "danger" }];
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={pulling}
-          onRefresh={pull}
-          tintColor={colors.primary}
-          colors={[colors.primary]}
-        />
-      }
+    <TabScroll
+      onRefresh={() => Promise.all([refreshSchedule(), load(null)])}
+      contentContainerStyle={styles.content}
     >
       {groups && (
         <Section title="Τρέχουσα">
@@ -192,19 +163,7 @@ export default function MembershipsScreen() {
           history.length === 0 && <Row title="Δεν υπάρχει ιστορικό ακόμη." lines={[]} muted />
         )}
       </Section>
-    </ScrollView>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  const colors = useColors();
-  return (
-    <View style={styles.section}>
-      <Text style={[typography.footnote, styles.header, { color: colors.textMuted }]}>{title}</Text>
-      <View style={[styles.group, { backgroundColor: colors.surface }]}>
-        {children}
-      </View>
-    </View>
+    </TabScroll>
   );
 }
 
@@ -234,9 +193,6 @@ function Row({ title, lines, muted }: { title: string; lines: Line[]; muted?: bo
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.xl },
-  section: { gap: spacing.sm },
-  header: { paddingHorizontal: spacing.lg },
-  group: { borderRadius: radius.lg, borderCurve: "continuous", overflow: "hidden" },
   row: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 2 },
   // A hairline above each row; the group's clipping hides the first one.
   divided: { borderTopWidth: StyleSheet.hairlineWidth, marginTop: -StyleSheet.hairlineWidth },

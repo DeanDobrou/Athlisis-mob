@@ -3,47 +3,17 @@ import { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 
 import { api, apiIfChanged, ApiError, errorMessage } from "@/lib/api";
+import type {
+  BookRefusal,
+  BookReply,
+  CancelReply,
+  EmailReply,
+  MemberClass,
+  Membership,
+  Profile,
+  SyncData,
+} from "@/lib/contract";
 import { getToken, onSignOut } from "@/lib/session";
-
-export type ClassType = { id: string; name: string; color_hex: string | null };
-
-export type MemberClass = {
-  id: string;
-  day: string;
-  start_time: string;
-  end_time: string;
-  capacity: number;
-  status: "scheduled" | "cancelled";
-  is_past: boolean;
-  types: ClassType[];
-  booked: number;
-  my_booking: { id: string; status: string } | null;
-};
-
-export type Membership = {
-  id: string;
-  plan_name: string;
-  starts_on: string;
-  ends_on: string | null;
-  visits_remaining: number | null;
-  owed_cents: number | null;
-  state: string;
-};
-
-export type Profile = {
-  email: string;
-  first_name: string;
-  last_name: string;
-  phone: string | null;
-  date_of_birth: string | null;
-  created_at: string;
-};
-
-type SyncData = {
-  classes: MemberClass[];
-  memberships?: Membership[];
-  profile?: Profile;
-};
 
 type ScheduleState = {
   classes: MemberClass[] | null;
@@ -178,33 +148,45 @@ export function refreshIfStale(): void {
 }
 
 /**
- * Throws if the member who sent a request has signed out since, so neither the
- * store nor the screen that asked acts on a reply meant for someone else.
+ * Every change the member makes goes through here. Sends it, shows the reply
+ * with `apply`, then refreshes the schedule. A reply that lands after a
+ * sign-out throws instead, so neither the store nor the screen that asked acts
+ * on it for the next member. A refusal refreshes too, since the phone's copy
+ * may be out of date.
  */
-function stillSignedIn(started: number): void {
+async function mutate<T>(send: () => Promise<T>, apply: (reply: T) => void): Promise<T> {
+  const started = session;
+  let reply: T;
+  try {
+    reply = await send();
+  } catch (e) {
+    if (e instanceof ApiError) void refreshSchedule();
+    throw e;
+  }
   if (session !== started) throw new Error("Αποσυνδέθηκες.");
+  apply(reply);
+  void refreshSchedule();
+  return reply;
 }
 
 /** Saves the member's own details and shows them straight away. */
 export async function saveProfile(
   details: Pick<Profile, "first_name" | "last_name" | "phone" | "date_of_birth">,
 ): Promise<void> {
-  const started = session;
-  const profile = await api<Profile>("/api/user-profile", { method: "PATCH", body: details });
-  stillSignedIn(started);
-  set({ profile });
-  void refreshSchedule();
+  await mutate(
+    () => api<Profile>("/api/user-profile", { method: "PATCH", body: details }),
+    (profile) => set({ profile }),
+  );
 }
 
 /** Switches the account to the new email address, with the code that was sent to it. */
 export async function confirmEmail(code: string): Promise<void> {
-  const started = session;
-  const { email } = await api<{ email: string }>("/api/user-profile/email/confirm", {
-    body: { code },
-  });
-  stillSignedIn(started);
-  if (state.profile) set({ profile: { ...state.profile, email } });
-  void refreshSchedule();
+  await mutate(
+    () => api<EmailReply>("/api/user-profile/email/confirm", { body: { code } }),
+    ({ email }) => {
+      if (state.profile) set({ profile: { ...state.profile, email } });
+    },
+  );
 }
 
 function patch(classId: string, change: (c: MemberClass) => MemberClass) {
@@ -214,76 +196,39 @@ function patch(classId: string, change: (c: MemberClass) => MemberClass) {
 /**
  * Books a class. With no coverage the server asks first: this returns its
  * message and books nothing until called again with `confirmUnpaid`.
- * A refusal refreshes the schedule, since the phone's copy may be out of date.
  */
 export async function bookClass(
   classId: string,
   confirmUnpaid: boolean,
 ): Promise<{ confirm: string } | null> {
-  const started = session;
   try {
-    const { id } = await api<{ id: string }>("/api/bookings", {
-      body: { classId, confirm: confirmUnpaid },
-    });
-    stillSignedIn(started);
-    patch(classId, (c) => ({
-      ...c,
-      booked: c.booked + 1,
-      my_booking: { id, status: "booked" },
-    }));
-    void refreshSchedule();
+    await mutate(
+      () => api<BookReply>("/api/bookings", { body: { classId, confirm: confirmUnpaid } }),
+      ({ id }) =>
+        patch(classId, (c) => ({ ...c, booked: c.booked + 1, my_booking: { id, status: "booked" } })),
+    );
     return null;
   } catch (e) {
-    const body = e instanceof ApiError ? (e.body as { confirm?: boolean }) : null;
-    if (e instanceof ApiError && body?.confirm) return { confirm: e.message };
-    if (e instanceof ApiError) void refreshSchedule();
+    if (e instanceof ApiError && (e.body as BookRefusal | null)?.confirm) return { confirm: e.message };
     throw e;
   }
 }
 
-/**
- * Cancels a booking. Returns what the member still owes, if anything.
- * A refusal refreshes the schedule, since the phone's copy may be out of date.
- */
-export async function cancelClass(
-  classId: string,
-  bookingId: string,
-): Promise<string | null> {
-  const started = session;
-  let reply: { notice?: string };
-  try {
-    reply = await api<{ notice?: string }>("/api/bookings/" + bookingId, {
-      method: "DELETE",
-    });
-  } catch (e) {
-    if (e instanceof ApiError) void refreshSchedule();
-    throw e;
-  }
-  stillSignedIn(started);
-  patch(classId, (c) => ({
-    ...c,
-    booked: Math.max(0, c.booked - 1),
-    my_booking: null,
-  }));
-  void refreshSchedule();
+/** Cancels a booking. Returns what the member still owes, if anything. */
+export async function cancelClass(classId: string, bookingId: string): Promise<string | null> {
+  const reply = await mutate(
+    () => api<CancelReply>("/api/bookings/" + bookingId, { method: "DELETE" }),
+    () => patch(classId, (c) => ({ ...c, booked: Math.max(0, c.booked - 1), my_booking: null })),
+  );
   return reply.notice ?? null;
 }
 
-/**
- * Checks in to a booking.
- * A refusal refreshes the schedule, since the phone's copy may be out of date.
- */
+/** Checks in to a booking. */
 export async function checkInClass(classId: string, bookingId: string): Promise<void> {
-  const started = session;
-  try {
-    await api(`/api/bookings/${bookingId}/check-in`, { method: "POST" });
-  } catch (e) {
-    if (e instanceof ApiError) void refreshSchedule();
-    throw e;
-  }
-  stillSignedIn(started);
-  patch(classId, (c) => ({ ...c, my_booking: { id: bookingId, status: "checked_in" } }));
-  void refreshSchedule();
+  await mutate(
+    () => api(`/api/bookings/${bookingId}/check-in`, { method: "POST" }),
+    () => patch(classId, (c) => ({ ...c, my_booking: { id: bookingId, status: "checked_in" } })),
+  );
 }
 
 onSignOut(() => {

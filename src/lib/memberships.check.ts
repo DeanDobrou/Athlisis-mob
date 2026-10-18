@@ -1,6 +1,6 @@
 // Run: npx tsx src/lib/memberships.check.ts
 import { groupMemberships, standing } from "@/lib/memberships";
-import type { Membership } from "@/lib/schedule";
+import type { Membership } from "@/lib/contract";
 
 const check = (ok: boolean, message: string) => {
   if (!ok) throw new Error(message);
@@ -14,7 +14,6 @@ const m = (extra: Partial<Membership>): Membership => ({
   ends_on: "2026-11-01",
   visits_remaining: null,
   owed_cents: null,
-  state: "active",
   ...extra,
 });
 

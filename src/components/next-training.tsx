@@ -4,17 +4,9 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "rea
 
 import { TypeNames } from "@/components/type-names";
 import { errorMessage } from "@/lib/api";
-import { useClock } from "@/lib/clock";
-import {
-  addDays,
-  minutesUntil,
-  shortDate,
-  timeBefore,
-  today,
-  weekdayName,
-  weekdayShort,
-} from "@/lib/dates";
-import { checkInClass, type MemberClass } from "@/lib/schedule";
+import type { MemberClass } from "@/lib/contract";
+import { addDays, shortDate, timeBefore, today, weekdayName, weekdayShort } from "@/lib/dates";
+import { checkInClass } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
 import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES, nextTraining } from "@/lib/training";
 
@@ -32,35 +24,36 @@ function dayWord(day: string, now: Date): string {
  */
 export function NextTraining({
   classes,
+  now,
   onOpen,
 }: {
   classes: MemberClass[];
+  now: Date;
   onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
   const [pending, setPending] = useState(false);
-  const now = useClock();
 
   const next = nextTraining(classes, now);
   if (!next) return null;
 
-  const { item } = next;
+  const { item, status } = next;
   const word = dayWord(item.day, now);
   const title = `${word}, ${item.start_time}`;
   const onInk = { color: colors.onPrimary };
 
+  // Not useAction: the card has no room for an error line, so a failure shows as an alert.
   async function checkIn(bookingId: string) {
     setPending(true);
     try {
       await checkInClass(item.id, bookingId);
     } catch (e) {
       Alert.alert("Το check-in δεν έγινε", errorMessage(e));
-    } finally {
-      setPending(false);
     }
+    setPending(false);
   }
 
-  if (next.kind === "checkedIn") {
+  if (status.kind === "checkedIn") {
     return (
       <View style={[styles.card, { backgroundColor: colors.primary }]}>
         <View style={[styles.badge, { backgroundColor: colors.onPrimary }]}>
@@ -80,9 +73,9 @@ export function NextTraining({
     );
   }
 
-  if (next.kind === "checkIn") {
-    const minutes = Math.ceil(next.minutes);
-    const bookingId = item.my_booking!.id;
+  if (status.kind === "checkIn") {
+    const minutes = Math.ceil(status.minutes);
+    const bookingId = status.booking.id;
     return (
       <View style={[styles.card, { backgroundColor: colors.primary }]}>
         <View style={styles.body}>
@@ -116,7 +109,7 @@ export function NextTraining({
 
   const midSentence = word === "Σήμερα" || word === "Αύριο" ? word.toLowerCase() : word;
   const note =
-    minutesUntil(item.day, item.start_time, now) > CANCEL_CUTOFF_MINUTES
+    status.kind === "booked"
       ? `Ακύρωση έως ${midSentence} στις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)}`
       : `Check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`;
 

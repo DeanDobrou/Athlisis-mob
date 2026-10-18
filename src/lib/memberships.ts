@@ -1,5 +1,5 @@
 import { longDate } from "@/lib/dates";
-import type { Membership } from "@/lib/schedule";
+import type { Membership } from "@/lib/contract";
 
 export const money = new Intl.NumberFormat("el-GR", { style: "currency", currency: "EUR" });
 

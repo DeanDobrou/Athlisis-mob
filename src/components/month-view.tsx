@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { TypeNames } from "@/components/type-names";
-import { classState } from "@/components/week-timetable";
+import type { MemberClass } from "@/lib/contract";
 import {
   addDays,
   firstTrainingDay,
@@ -10,8 +10,8 @@ import {
   WEEKDAYS,
   weekStart,
 } from "@/lib/dates";
-import type { MemberClass } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
+import { classLook, classStatus, hasBooking, type ClassStatus } from "@/lib/training";
 
 /** Every month's Monday-to-Friday days fit in five rows. */
 const ROWS = 5;
@@ -97,7 +97,7 @@ function Day({
 }) {
   const colors = useColors();
   const running = classes.filter((c) => c.status !== "cancelled");
-  const booked = running.some((c) => c.my_booking !== null);
+  const booked = hasBooking(classes);
   const isToday = day === today;
   const ink = booked
     ? colors.onPrimary
@@ -149,10 +149,12 @@ function Day({
 export function DayClasses({
   day,
   classes,
+  now,
   onOpen,
 }: {
   day: string;
   classes: MemberClass[];
+  now: Date;
   onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
@@ -167,7 +169,14 @@ export function DayClasses({
           Δεν υπάρχουν μαθήματα αυτή τη μέρα.
         </Text>
       ) : (
-        classes.map((item) => <ClassRow key={item.id} item={item} onOpen={onOpen} />)
+        classes.map((item) => (
+          <ClassRow
+            key={item.id}
+            item={item}
+            status={classStatus(item, classes, now)}
+            onOpen={onOpen}
+          />
+        ))
       )}
     </View>
   );
@@ -175,27 +184,32 @@ export function DayClasses({
 
 function ClassRow({
   item,
+  status,
   onOpen,
 }: {
   item: MemberClass;
+  status: ClassStatus;
   onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
-  const state = classState(item);
-  const ink = state.mine ? colors.onPrimary : colors.text;
+  const { look, text } = classLook(status);
+  const mine = look === "booked" || look === "attended";
+  // Only a class still to come, booked or open, shows at full strength.
+  const faded = look !== "booked" && look !== "open";
+  const ink = mine ? colors.onPrimary : colors.text;
   const types = item.types.map((t) => t.name).join(" · ") || "Μάθημα";
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${item.start_time}, ${types}, ${state.text}`}
+      accessibilityLabel={`${item.start_time}, ${types}, ${text}`}
       onPress={() => onOpen(item.id)}
       style={({ pressed }) => [
         styles.classRow,
         {
-          backgroundColor: state.mine ? colors.primary : colors.surface,
-          borderColor: state.mine ? colors.primary : colors.border,
-          opacity: state.faded ? 0.4 : pressed ? 0.7 : 1,
+          backgroundColor: mine ? colors.primary : colors.surface,
+          borderColor: mine ? colors.primary : colors.border,
+          opacity: faded ? 0.4 : pressed ? 0.7 : 1,
         },
       ]}
     >
@@ -205,12 +219,10 @@ function ClassRow({
         </Text>
         <TypeNames
           types={item.types}
-          style={[typography.subhead, { color: state.mine ? colors.onPrimary : colors.textMuted }]}
+          style={[typography.subhead, { color: mine ? colors.onPrimary : colors.textMuted }]}
         />
       </View>
-      <Text style={[typography.subhead, { color: ink }]}>
-        {state.mine ? "✓" : state.text}
-      </Text>
+      <Text style={[typography.subhead, { color: ink }]}>{mine ? "✓" : text}</Text>
     </Pressable>
   );
 }

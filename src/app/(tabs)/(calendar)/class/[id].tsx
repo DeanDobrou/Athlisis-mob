@@ -7,31 +7,30 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/button";
 import { ConfirmSheet } from "@/components/confirm-sheet";
 import { TypeNames } from "@/components/type-names";
-import { errorMessage } from "@/lib/api";
+import { useAction } from "@/lib/action";
 import { useClock } from "@/lib/clock";
+import type { MemberClass } from "@/lib/contract";
 import { minutesUntil, shortDate, timeBefore, weekdayName } from "@/lib/dates";
 import { bookClass, cancelClass, checkInClass, useSchedule } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
-import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES } from "@/lib/training";
+import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES, classStatus } from "@/lib/training";
 
 export default function ClassSheet() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { classes } = useSchedule();
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const { pending, error, setError, notice, setNotice, run } = useAction();
   const [confirm, setConfirm] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   // Check-in, the cancel cutoff and the start are read off this clock below.
   const now = useClock();
 
-  const sheet =[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }];
+  const sheet = [styles.sheet, { paddingBottom: insets.bottom + spacing.lg }];
   const muted = [typography.body, { color: colors.textMuted }];
   const item = classes?.find((c) => c.id === id);
 
-  if (!item) {
+  if (!classes || !item) {
     return (
       <View style={sheet}>
         <Text style={muted}>Το μάθημα δεν βρέθηκε.</Text>
@@ -39,146 +38,128 @@ export default function ClassSheet() {
     );
   }
 
-  const minutes = minutesUntil(item.day, item.start_time, now);
-  const started = minutes <= 0;
-  const ending = minutesUntil(item.day, item.end_time, now);
-  const ended = item.is_past || ending <= 0;
-  const cancelled = item.status === "cancelled";
-  const booking = cancelled ? null : item.my_booking;
-  const checkedIn = booking?.status === "checked_in";
-  const left = Math.max(0, item.capacity - item.booked);
-  const places = cancelled
-    ? "Το μάθημα ακυρώθηκε."
-    : ended
-      ? "Το μάθημα ολοκληρώθηκε."
-      : left === 0
-      ? "Το μάθημα είναι γεμάτο."
-      : `${left} ${left === 1 ? "ελεύθερη θέση" : "ελεύθερες θέσεις"} από ${item.capacity}`;
+  const status = classStatus(item, classes, now);
+  const booking = "booking" in status ? status.booking : null;
+  const places =
+    status.kind === "cancelled"
+      ? "Το μάθημα ακυρώθηκε."
+      : status.kind === "ended"
+        ? "Το μάθημα ολοκληρώθηκε."
+        : status.left === 0
+          ? "Το μάθημα είναι γεμάτο."
+          : `${status.left} ${status.left === 1 ? "ελεύθερη θέση" : "ελεύθερες θέσεις"} από ${item.capacity}`;
   const rules =
-    !cancelled && !item.is_past && minutes > CANCEL_CUTOFF_MINUTES
+    status.kind !== "cancelled" && status.kind !== "ended" && status.minutes > CANCEL_CUTOFF_MINUTES
       ? `Ακύρωση έως τις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)} · check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`
       : null;
 
-  async function run(action: () => Promise<void>) {
-    setPending(true);
-    setError(null);
-    setNote(null);
-    try {
-      await action();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setPending(false);
-    }
-  }
-
-  function book(confirmUnpaid: boolean) {
+  const book = (confirmUnpaid: boolean) => {
     void run(async () => {
-      const asked = await bookClass(item!.id, confirmUnpaid);
+      const asked = await bookClass(item.id, confirmUnpaid);
       if (asked) setConfirm(asked.confirm);
       else router.back();
     });
-  }
+  };
 
-  function cancel(bookingId: string) {
+  const cancel = (bookingId: string) => {
     void run(async () => {
-      const notice = await cancelClass(item!.id, bookingId);
-      if (notice) {
-        setNote(notice);
+      const owed = await cancelClass(item.id, bookingId);
+      if (owed) {
+        setNotice(owed);
         setAsking(false);
       } else {
         router.back();
       }
     });
-  }
+  };
 
-  function checkIn(bookingId: string) {
-    void run(() => checkInClass(item!.id, bookingId));
-  }
-
-  let action: ReactNode = null;
-  if (cancelled || ended || checkedIn) {
-    action = null;
-  } else if (booking && minutes <= CHECK_IN_OPENS_MINUTES) {
-    action = (
-      <Button label="Κάνε check-in" onPress={() => checkIn(booking.id)} pending={pending} />
-    );
-  } else if (booking && minutes <= CANCEL_CUTOFF_MINUTES) {
-    action = (
-      <Text style={muted}>
-        Η ακύρωση κλείνει μία ώρα πριν από το μάθημα. Το check-in ανοίγει{" "}
-        {CHECK_IN_OPENS_MINUTES} λεπτά πριν.
-      </Text>
-    );
-  } else if (booking) {
-    action = (
-      <Button
-        label="Ακύρωση κράτησης"
-        tone="dangerOutline"
-        onPress={() => {
-          setError(null);
-          setAsking(true);
-        }}
-      />
-    );
-  } else if (started) {
-    action = <Text style={muted}>Το μάθημα έχει ξεκινήσει.</Text>;
-  } else if (left > 0 && confirm) {
-    action = (
-      <>
-        <Text style={[typography.body, { color: colors.text }]}>{confirm}</Text>
-        <Button label="Κλείσε θέση" onPress={() => book(true)} pending={pending} />
-        <Button
-          label="Άκυρο"
-          tone="plain"
-          onPress={() => setConfirm(null)}
-          disabled={pending}
-        />
-      </>
-    );
-  } else if (left > 0) {
-    action = <Button label="Κλείσε θέση" onPress={() => book(false)} pending={pending} />;
-  } else if (!cancelled) {
-    const distance = (c: { day: string; start_time: string }) =>
-      Math.abs(minutesUntil(c.day, c.start_time, now) - minutes);
-    const nearest = (classes ?? [])
-      .filter(
-        (c) =>
-          c.day === item.day &&
-          c.status !== "cancelled" &&
-          !c.my_booking &&
-          c.booked < c.capacity &&
-          minutesUntil(c.day, c.start_time, now) > 0,
-      )
+  /** The free class that day nearest in time to this full one, if any. */
+  const nearestFree = (): MemberClass | undefined => {
+    const distance = (c: MemberClass) =>
+      Math.abs(minutesUntil(c.day, c.start_time, now) - status.minutes);
+    return classes
+      .filter((c) => c.day === item.day && classStatus(c, classes, now).kind === "open")
       .sort((a, b) => distance(a) - distance(b))[0];
-    if (nearest) {
-      const free = nearest.capacity - nearest.booked;
-      action = (
-        <View style={styles.alternative}>
-          <Text style={[typography.footnote, styles.bold, { color: colors.textMuted }]}>
-            Ελεύθερο την ίδια μέρα
+  };
+
+  const action = (): ReactNode => {
+    switch (status.kind) {
+      case "checkIn": {
+        const bookingId = status.booking.id;
+        return (
+          <Button
+            label="Κάνε check-in"
+            onPress={() => void run(() => checkInClass(item.id, bookingId))}
+            pending={pending}
+          />
+        );
+      }
+      case "cancelClosed":
+        return (
+          <Text style={muted}>
+            Η ακύρωση κλείνει μία ώρα πριν από το μάθημα. Το check-in ανοίγει{" "}
+            {CHECK_IN_OPENS_MINUTES} λεπτά πριν.
           </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.setParams({ id: nearest.id })}
-            style={({ pressed }) => [
-              styles.option,
-              { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <Text style={[typography.headline, { color: colors.text }]}>
-              {nearest.start_time} · {free} {free === 1 ? "θέση" : "θέσεις"}
+        );
+      case "booked":
+        return (
+          <Button
+            label="Ακύρωση κράτησης"
+            tone="dangerOutline"
+            onPress={() => {
+              setError(null);
+              setAsking(true);
+            }}
+          />
+        );
+      case "started":
+        return <Text style={muted}>Το μάθημα έχει ξεκινήσει.</Text>;
+      case "bookedThatDay":
+        return <Text style={muted}>Έχεις ήδη κλείσει θέση αυτή την ημέρα.</Text>;
+      case "open":
+        return confirm ? (
+          <>
+            <Text style={[typography.body, { color: colors.text }]}>{confirm}</Text>
+            <Button label="Κλείσε θέση" onPress={() => book(true)} pending={pending} />
+            <Button label="Άκυρο" tone="plain" onPress={() => setConfirm(null)} disabled={pending} />
+          </>
+        ) : (
+          <Button label="Κλείσε θέση" onPress={() => book(false)} pending={pending} />
+        );
+      case "full": {
+        const nearest = nearestFree();
+        if (!nearest) return null;
+        const free = nearest.capacity - nearest.booked;
+        return (
+          <View style={styles.alternative}>
+            <Text style={[typography.footnote, styles.bold, { color: colors.textMuted }]}>
+              Ελεύθερο την ίδια μέρα
             </Text>
-            <SymbolView
-              name={{ ios: "chevron.right", android: "chevron_right", web: "chevron_right" }}
-              size={16}
-              tintColor={colors.textMuted}
-            />
-          </Pressable>
-        </View>
-      );
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.setParams({ id: nearest.id })}
+              style={({ pressed }) => [
+                styles.option,
+                { borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <Text style={[typography.headline, { color: colors.text }]}>
+                {nearest.start_time} · {free} {free === 1 ? "θέση" : "θέσεις"}
+              </Text>
+              <SymbolView
+                name={{ ios: "chevron.right", android: "chevron_right", web: "chevron_right" }}
+                size={16}
+                tintColor={colors.textMuted}
+              />
+            </Pressable>
+          </View>
+        );
+      }
+      default:
+        // Cancelled, over, or already checked in: nothing left to do.
+        return null;
     }
-  }
+  };
 
   if (booking && asking) {
     return (
@@ -228,16 +209,16 @@ export default function ClassSheet() {
       {booking && (
         <Text style={[typography.headline, { color: colors.primary }]}>
           ✓{" "}
-          {checkedIn
+          {booking.status === "checked_in"
             ? "Έκανες check-in."
-            : item.is_past
+            : status.kind === "ended"
               ? "Είχες κλείσει θέση."
               : "Έχεις κλείσει θέση."}
         </Text>
       )}
-      {note && <Text style={muted}>{note}</Text>}
+      {notice && <Text style={muted}>{notice}</Text>}
 
-      {action}
+      {action()}
     </View>
   );
 }

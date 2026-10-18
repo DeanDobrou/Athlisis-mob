@@ -4,13 +4,8 @@
 // network holds every request until the check answers it, so each race happens
 // in exactly the order that causes it.
 import { api } from "@/lib/api";
-import {
-  bookClass,
-  refreshSchedule,
-  saveProfile,
-  useSchedule,
-  type MemberClass,
-} from "@/lib/schedule";
+import type { MemberClass } from "@/lib/contract";
+import { bookClass, refreshSchedule, saveProfile, useSchedule } from "@/lib/schedule";
 import { signIn, signOut, startSetPassword, useSession } from "@/lib/session";
 
 type Call = {

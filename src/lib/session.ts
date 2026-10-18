@@ -3,6 +3,8 @@ import * as SecureStore from "expo-secure-store";
 import { useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 
+import type { LoginReply } from "@/lib/contract";
+
 export type Session =
   | { status: "loading" }
   | { status: "signedOut"; notice?: string }
@@ -58,11 +60,18 @@ export function sessionToken(): string | null {
 }
 
 /**
- * The current session. It is a new object on every change, so comparing it
- * before and after a request tells whether anyone signed in or out meanwhile.
+ * Sends a request whose reply starts a session, and acts on the reply unless
+ * someone signed in or out while it was on its way: a late reply must not
+ * replace the session that followed. `session` is a new object on every
+ * change, so comparing it tells. Returns whether it acted.
  */
-export function getSession(): Session {
-  return session;
+export async function signInWith(request: () => Promise<LoginReply>): Promise<boolean> {
+  const from = session;
+  const reply = await request();
+  if (session !== from) return false;
+  if ("setPasswordToken" in reply) startSetPassword(reply.setPasswordToken);
+  else await signIn(reply.token);
+  return true;
 }
 
 /**

@@ -7,7 +7,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
-import type { ClassType } from "@/lib/schedule";
+import type { ClassType } from "@/lib/contract";
 import { spacing } from "@/lib/theme";
 
 const DOT = 8;

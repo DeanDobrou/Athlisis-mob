@@ -3,38 +3,16 @@ import { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { TypeBar } from "@/components/type-names";
-import { addDays, timeBefore, WEEKDAY_NAMES, WEEKDAYS } from "@/lib/dates";
-import type { MemberClass } from "@/lib/schedule";
+import type { MemberClass } from "@/lib/contract";
+import { addDays, timeBefore, today, WEEKDAY_NAMES, WEEKDAYS } from "@/lib/dates";
 import { spacing, typography, useColors } from "@/lib/theme";
-import { FEW_PLACES } from "@/lib/training";
+import { classLook, classStatus, FEW_PLACES, type ClassStatus } from "@/lib/training";
 
 /** Inside the calendar card. */
 const PAD = 10;
 const TIME_COLUMN = 40;
 const GAP = 6;
 const CHECK = { ios: "checkmark", android: "check", web: "check" } as const;
-
-/** How a class reads for the member: booked, cancelled, full or places left. */
-export function classState(item: MemberClass) {
-  const cancelled = item.status === "cancelled";
-  const mine = item.my_booking !== null && !cancelled;
-  const left = Math.max(0, item.capacity - item.booked);
-  const full = left === 0 && item.my_booking === null;
-  return {
-    cancelled,
-    mine,
-    left,
-    full,
-    faded: item.is_past || full || cancelled,
-    text: cancelled
-      ? "ακυρώθηκε"
-      : mine
-        ? "έχεις κλείσει θέση"
-        : full
-          ? "πλήρες"
-          : `${left} ${left === 1 ? "θέση" : "θέσεις"}`,
-  };
-}
 
 const typesKey = (item: MemberClass) => item.types.map((t) => t.id).join("+");
 
@@ -66,16 +44,17 @@ export const WeekTimetable = memo(function WeekTimetable({
   week,
   classes,
   width,
-  today,
+  now,
   onOpen,
 }: {
   week: string;
   classes: MemberClass[];
   width: number;
-  today: string;
+  now: Date;
   onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
+  const date = today(now);
   const days = WEEKDAYS.map((label, i) => {
     const day = addDays(week, i);
     return {
@@ -88,7 +67,7 @@ export const WeekTimetable = memo(function WeekTimetable({
   const times = [...new Set(classes.map((c) => c.start_time))].sort();
   const bySlot = new Map(classes.map((c) => [`${c.day} ${c.start_time}`, c]));
   const cellWidth = (width - PAD * 2 - TIME_COLUMN - GAP * 5) / 5;
-  const todayIndex = days.findIndex(({ day }) => day === today);
+  const todayIndex = days.findIndex(({ day }) => day === date);
 
   if (times.length === 0) {
     return (
@@ -119,8 +98,8 @@ export const WeekTimetable = memo(function WeekTimetable({
         <View style={styles.row}>
           <View style={{ width: TIME_COLUMN }} />
           {days.map(({ label, day, programme }) => {
-            const isToday = day === today;
-            const ink = day < today ? colors.textMuted : colors.text;
+            const isToday = day === date;
+            const ink = day < date ? colors.textMuted : colors.text;
             return (
               <View key={day} style={[styles.dayHeader, { width: cellWidth }]}>
                 <Text style={[styles.weekday, { color: ink }]}>{label}</Text>
@@ -154,11 +133,13 @@ export const WeekTimetable = memo(function WeekTimetable({
             <Text style={[typography.footnote, styles.time, { color: colors.text }]}>{time}</Text>
             {days.map(({ day, name, programme }) => {
               const item = bySlot.get(`${day} ${time}`);
+              if (!item) return <View key={day} style={{ width: cellWidth, height: cellWidth }} />;
               return (
                 <Cell
                   key={day}
                   item={item}
-                  showTypes={!!item && !!programme && typesKey(item) !== typesKey(programme)}
+                  status={classStatus(item, classes, now)}
+                  showTypes={!!programme && typesKey(item) !== typesKey(programme)}
                   width={cellWidth}
                   dayName={name}
                   onOpen={onOpen}
@@ -174,80 +155,79 @@ export const WeekTimetable = memo(function WeekTimetable({
 
 function Cell({
   item,
+  status,
   showTypes,
   width,
   dayName,
   onOpen,
 }: {
-  item: MemberClass | undefined;
+  item: MemberClass;
+  status: ClassStatus;
   showTypes: boolean;
   width: number;
   dayName: string;
   onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
-  if (!item) return <View style={{ width, height: width }} />;
-
-  const state = classState(item);
-  const booked = state.mine && !item.is_past;
-  const attended = state.mine && item.is_past;
-  const gone = item.is_past && !state.mine && !state.cancelled;
-  const full = state.full && !gone && !state.cancelled;
+  const { look, text } = classLook(status);
   const names = item.types.map((t) => t.name).join(" και ") || "Μάθημα";
-  const status = attended ? "είχες κλείσει θέση" : gone ? "έχει περάσει" : state.text;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${dayName} ${item.start_time}, ${names}, ${status}`}
+      accessibilityLabel={`${dayName} ${item.start_time}, ${names}, ${text}`}
       onPress={() => onOpen(item.id)}
       style={({ pressed }) => [
         styles.cell,
         // Soft tiles on the card; a past class is left as a bare outline.
         // Square at any screen width.
         { width, height: width, backgroundColor: colors.groupedBackground, borderColor: "transparent" },
-        booked && { backgroundColor: colors.primary, borderColor: colors.primary, borderWidth: 1.5 },
-        attended && { borderColor: colors.primary, borderWidth: 1.5 },
-        state.cancelled && {
+        look === "booked" && {
+          backgroundColor: colors.primary,
+          borderColor: colors.primary,
+          borderWidth: 1.5,
+        },
+        look === "attended" && { borderColor: colors.primary, borderWidth: 1.5 },
+        look === "cancelled" && {
           backgroundColor: "transparent",
           borderColor: colors.textMuted,
           borderStyle: "dashed",
           opacity: 0.6,
         },
-        full && hatch(colors.border),
-        gone && { backgroundColor: "transparent", borderColor: colors.border },
+        look === "full" && hatch(colors.border),
+        look === "gone" && { backgroundColor: "transparent", borderColor: colors.border },
         pressed && { opacity: 0.7 },
       ]}
     >
       <View style={styles.main}>
-        {state.cancelled ? (
+        {look === "cancelled" ? (
           <SymbolView
             name={{ ios: "nosign", android: "block", web: "block" }}
             size={18}
             tintColor={colors.textMuted}
           />
-        ) : state.mine ? (
+        ) : look === "booked" || look === "attended" ? (
           <SymbolView
             name={CHECK}
             size={20}
-            tintColor={booked ? colors.onPrimary : colors.primary}
+            tintColor={look === "booked" ? colors.onPrimary : colors.primary}
           />
-        ) : gone ? (
+        ) : look === "gone" ? (
           <Text style={[styles.left, { color: colors.textMuted }]}>–</Text>
-        ) : full ? (
+        ) : look === "full" ? (
           <Text style={[styles.full, { color: colors.textMuted }]}>Πλήρες</Text>
         ) : (
           <Text
             style={[
               styles.left,
-              { color: state.left <= FEW_PLACES ? colors.warning : colors.text },
+              { color: status.left <= FEW_PLACES ? colors.warning : colors.text },
             ]}
           >
-            {state.left}
+            {status.left}
           </Text>
         )}
       </View>
-      {showTypes && !gone && <TypeBar types={item.types} style={styles.cellBar} />}
+      {showTypes && look !== "gone" && <TypeBar types={item.types} style={styles.cellBar} />}
     </Pressable>
   );
 }

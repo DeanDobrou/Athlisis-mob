@@ -1,46 +1,26 @@
 import Constants from "expo-constants";
 import { useRouter, type Href } from "expo-router";
 import { SymbolView } from "expo-symbols";
-import { useState } from "react";
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { useTabBarSpace } from "@/components/tab-bar";
+import { Section } from "@/components/section";
+import { TabScroll } from "@/components/tab-scroll";
+import type { Membership } from "@/lib/contract";
 import { longDate, today } from "@/lib/dates";
 import { groupMemberships, money, standing } from "@/lib/memberships";
-import { refreshSchedule, useSchedule, type Membership } from "@/lib/schedule";
-import { radius, spacing, typography, useColors } from "@/lib/theme";
+import { refreshSchedule, useSchedule } from "@/lib/schedule";
+import { spacing, typography, useColors } from "@/lib/theme";
 
 export default function AccountScreen() {
   const colors = useColors();
-  const tabBarSpace = useTabBarSpace();
   const router = useRouter();
   const { memberships, profile } = useSchedule();
-  const [pulling, setPulling] = useState(false);
-  const group = [styles.group, { backgroundColor: colors.surface }];
-  const muted = { color: colors.textMuted };
-
-  async function pull() {
-    setPulling(true);
-    await refreshSchedule();
-    setPulling(false);
-  }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={pulling}
-          onRefresh={pull}
-          tintColor={colors.primary}
-          colors={[colors.primary]}
-        />
-      }
-    >
+    <TabScroll onRefresh={refreshSchedule} contentContainerStyle={styles.content}>
       {memberships && <MembershipCard memberships={memberships} />}
 
-      <View style={group}>
+      <Section>
         {profile && (
           <>
             <LinkRow label="Προφίλ" href="/settings/profile" />
@@ -48,9 +28,9 @@ export default function AccountScreen() {
           </>
         )}
         <LinkRow label="Αλλαγή κωδικού" href="/settings/password" />
-      </View>
+      </Section>
 
-      <View style={group}>
+      <Section>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push("/settings/sign-out")}
@@ -58,12 +38,12 @@ export default function AccountScreen() {
         >
           <Text style={[typography.body, { color: colors.destructive }]}>Αποσύνδεση</Text>
         </Pressable>
-      </View>
+      </Section>
 
-      <Text style={[typography.footnote, styles.version, muted]}>
+      <Text style={[typography.footnote, styles.version, { color: colors.textMuted }]}>
         Athlisis {Constants.expoConfig?.version}
       </Text>
-    </ScrollView>
+    </TabScroll>
   );
 }
 
@@ -82,17 +62,12 @@ function MembershipCard({ memberships }: { memberships: Membership[] }) {
   const muted = [typography.subhead, { color: colors.textMuted }];
 
   return (
-    <View style={styles.section}>
-      <Text style={[typography.footnote, styles.header, { color: colors.textMuted }]}>Συνδρομή</Text>
+    <Section title="Συνδρομή">
       <Pressable
         accessibilityRole="button"
         accessibilityHint="Δες όλες τις συνδρομές και το ιστορικό"
         onPress={() => router.push("/settings/memberships")}
-        style={({ pressed }) => [
-          styles.group,
-          styles.link,
-          { backgroundColor: pressed ? colors.accent : colors.surface },
-        ]}
+        style={({ pressed }) => [styles.link, pressed && { backgroundColor: colors.accent }]}
       >
         <View style={[styles.grow, styles.lines]}>
           <Text style={[typography.headline, { color: colors.text }]}>
@@ -129,7 +104,7 @@ function MembershipCard({ memberships }: { memberships: Membership[] }) {
           <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />
         )}
       </Pressable>
-    </View>
+    </Section>
   );
 }
 
@@ -158,9 +133,6 @@ function Divider() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.lg, gap: spacing.xl },
-  section: { gap: spacing.sm },
-  header: { paddingHorizontal: spacing.lg },
-  group: { borderRadius: radius.lg, borderCurve: "continuous", overflow: "hidden" },
   row: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 2 },
   link: {
     flexDirection: "row",
