@@ -6,8 +6,6 @@ import {
   AppState,
   FlatList,
   Pressable,
-  RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -27,8 +25,10 @@ import { Button } from "@/components/button";
 import { DayClasses, MonthGrid } from "@/components/month-view";
 import { NextTraining } from "@/components/next-training";
 import { Segmented } from "@/components/segmented";
-import { useTabBarSpace } from "@/components/tab-bar";
+import { TabScroll } from "@/components/tab-scroll";
 import { WeekLegend, WeekTimetable } from "@/components/week-timetable";
+import { useClock } from "@/lib/clock";
+import type { MemberClass } from "@/lib/contract";
 import {
   addDays,
   addMonths,
@@ -39,12 +39,7 @@ import {
   weekStart,
   weekTitle,
 } from "@/lib/dates";
-import {
-  loadSchedule,
-  refreshSchedule,
-  useSchedule,
-  type MemberClass,
-} from "@/lib/schedule";
+import { loadSchedule, refreshSchedule, useSchedule } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
 
 type Mode = "week" | "month";
@@ -89,18 +84,18 @@ function pagesAround(opening: string, classes: MemberClass[], mode: Mode): strin
 
 export default function CalendarScreen() {
   const colors = useColors();
-  const tabBarSpace = useTabBarSpace();
   const { width } = useWindowDimensions();
   // The pages fill the calendar card: the screen less its margins and border.
   const pageWidth = width - (spacing.lg + 1) * 2;
   const { classes, refreshing, error } = useSchedule();
   const [mode, setMode] = useState<Mode>("week");
   const [focus, setFocus] = useState<string | null>(null);
-  const [pulling, setPulling] = useState(false);
   const list = useRef<FlatList<string>>(null);
   const router = useRouter();
+  // Which classes are over, open to check-in or past cancelling is read off this clock.
+  const now = useClock();
 
-  const day = today();
+  const day = today(now);
   const start = firstTrainingDay(day);
   const { pageOf, title, previous, following } = MODES[mode];
   const opening = pageOf(start);
@@ -161,25 +156,8 @@ export default function CalendarScreen() {
     [router],
   );
 
-  async function pull() {
-    setPulling(true);
-    await refreshSchedule();
-    setPulling(false);
-  }
-
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={pulling}
-          onRefresh={pull}
-          tintColor={colors.primary}
-          colors={[colors.primary]}
-        />
-      }
-    >
+    <TabScroll onRefresh={refreshSchedule} contentContainerStyle={styles.content}>
       <View style={styles.modes}>
         <Segmented
           options={["Εβδομάδα", "Μήνας"]}
@@ -188,7 +166,7 @@ export default function CalendarScreen() {
         />
       </View>
 
-      {classes && <NextTraining classes={classes} onOpen={open} />}
+      {classes && <NextTraining classes={classes} now={now} onOpen={open} />}
 
       {/* One card holds the calendar: its range and arrows above the pages that swipe inside it. */}
       <View style={[styles.calendar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -310,7 +288,7 @@ export default function CalendarScreen() {
                           week={item}
                           classes={byWeek.get(item) ?? NO_CLASSES}
                           width={pageWidth}
-                          today={day}
+                          now={now}
                           onOpen={open}
                         />
                       ) : (
@@ -338,12 +316,17 @@ export default function CalendarScreen() {
             {mode === "week" ? (
               <WeekLegend classes={byWeek.get(page) ?? NO_CLASSES} />
             ) : (
-              <DayClasses day={focused} classes={byDay.get(focused) ?? []} onOpen={open} />
+              <DayClasses
+                day={focused}
+                classes={byDay.get(focused) ?? NO_CLASSES}
+                now={now}
+                onOpen={open}
+              />
             )}
           </Animated.View>
         </LayoutAnimationConfig>
       )}
-    </ScrollView>
+    </TabScroll>
   );
 }
 

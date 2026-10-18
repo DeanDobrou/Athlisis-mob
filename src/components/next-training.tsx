@@ -4,19 +4,16 @@ import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "rea
 
 import { TypeNames } from "@/components/type-names";
 import { errorMessage } from "@/lib/api";
-import { useClock } from "@/lib/clock";
-import {
-  addDays,
-  minutesUntil,
-  shortDate,
-  timeBefore,
-  today,
-  weekdayName,
-  weekdayShort,
-} from "@/lib/dates";
-import { checkInClass, type MemberClass } from "@/lib/schedule";
+import type { MemberClass } from "@/lib/contract";
+import { addDays, shortDate, timeBefore, today, weekdayName, weekdayShort } from "@/lib/dates";
+import { checkInClass } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
-import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES, nextTraining } from "@/lib/training";
+import {
+  CANCEL_CUTOFF_MINUTES,
+  CHECK_IN_OPENS_MINUTES,
+  nextTraining,
+  SHOW_CHECK_IN,
+} from "@/lib/training";
 
 /** Σήμερα, Αύριο, or the weekday and date further ahead. */
 function dayWord(day: string, now: Date): string {
@@ -28,39 +25,40 @@ function dayWord(day: string, now: Date): string {
 
 /**
  * The top of the schedule: the member's next class, or its check-in once it
- * opens. Nothing at all when no class is booked.
+ * opens when check-in is shown. Nothing at all when no class is booked.
  */
 export function NextTraining({
   classes,
+  now,
   onOpen,
 }: {
   classes: MemberClass[];
+  now: Date;
   onOpen: (classId: string) => void;
 }) {
   const colors = useColors();
   const [pending, setPending] = useState(false);
-  const now = useClock();
 
   const next = nextTraining(classes, now);
   if (!next) return null;
 
-  const { item } = next;
+  const { item, status } = next;
   const word = dayWord(item.day, now);
   const title = `${word}, ${item.start_time}`;
   const onInk = { color: colors.onPrimary };
 
+  // Not useAction: the card has no room for an error line, so a failure shows as an alert.
   async function checkIn(bookingId: string) {
     setPending(true);
     try {
       await checkInClass(item.id, bookingId);
     } catch (e) {
       Alert.alert("Το check-in δεν έγινε", errorMessage(e));
-    } finally {
-      setPending(false);
     }
+    setPending(false);
   }
 
-  if (next.kind === "checkedIn") {
+  if (SHOW_CHECK_IN && status.kind === "checkedIn") {
     return (
       <View style={[styles.card, { backgroundColor: colors.primary }]}>
         <View style={[styles.badge, { backgroundColor: colors.onPrimary }]}>
@@ -80,9 +78,9 @@ export function NextTraining({
     );
   }
 
-  if (next.kind === "checkIn") {
-    const minutes = Math.ceil(next.minutes);
-    const bookingId = item.my_booking!.id;
+  if (SHOW_CHECK_IN && status.kind === "checkIn") {
+    const minutes = Math.ceil(status.minutes);
+    const bookingId = status.booking.id;
     return (
       <View style={[styles.card, { backgroundColor: colors.primary }]}>
         <View style={styles.body}>
@@ -116,14 +114,16 @@ export function NextTraining({
 
   const midSentence = word === "Σήμερα" || word === "Αύριο" ? word.toLowerCase() : word;
   const note =
-    minutesUntil(item.day, item.start_time, now) > CANCEL_CUTOFF_MINUTES
+    status.kind === "booked"
       ? `Ακύρωση έως ${midSentence} στις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)}`
-      : `Check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`;
+      : SHOW_CHECK_IN
+        ? `Check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`
+        : null;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Επόμενη προπόνηση: ${title}, ${note}`}
+      accessibilityLabel={`Επόμενη προπόνηση: ${title}${note ? `, ${note}` : ""}`}
       onPress={() => onOpen(item.id)}
       style={({ pressed }) => [
         styles.card,
@@ -139,7 +139,7 @@ export function NextTraining({
         <Text style={[styles.eyebrow, { color: colors.textMuted }]}>ΕΠΟΜΕΝΗ ΠΡΟΠΟΝΗΣΗ</Text>
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
         <TypeNames types={item.types} style={[typography.footnote, { color: colors.textMuted }]} />
-        <Text style={[typography.footnote, { color: colors.textMuted }]}>{note}</Text>
+        {note && <Text style={[typography.footnote, { color: colors.textMuted }]}>{note}</Text>}
       </View>
       <SymbolView
         name={{ ios: "chevron.right", android: "chevron_right", web: "chevron_right" }}

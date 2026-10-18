@@ -2,55 +2,59 @@ import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
 import { useColorScheme, type TextStyle } from "react-native";
 
 /**
- * The admin panel's colours from its globals.css, converted from oklch to hex.
- * `primary` is the sidebar's near-black, `primarySoft` the soft grey behind today.
+ * Graphite: cool neutral greys with a near-black `primary`. `primarySoft` is
+ * the soft grey behind the active tab and today in the month view.
  */
 const light = {
   background: "#FFFFFF",
-  groupedBackground: "#F7F4F5",
+  groupedBackground: "#F1F3F5",
   surface: "#FFFFFF",
-  text: "#231F20",
-  textMuted: "#6F686A",
-  border: "#E6E3E4",
-  primary: "#231F20",
-  onPrimary: "#FFFDFD",
-  primarySoft: "#E6E3E4",
-  accent: "#F4F0F1",
+  text: "#14171A",
+  textMuted: "#5A636E",
+  border: "#E1E5EA",
+  primary: "#14171A",
+  onPrimary: "#FFFFFF",
+  primarySoft: "#E3E7EC",
+  accent: "#EEF1F4",
   destructive: "#E7000B",
   destructiveFill: "#E7000B",
   destructiveSoft: "#FEE2E2",
   /** Behind today's column in the week timetable. */
-  todayTint: "#ECE7E9",
+  todayTint: "#E6EAEF",
   /** A class that is filling up. */
   warning: "#B45309",
 };
 
 export type Colors = typeof light;
 
-/** Dark mode: surfaces are lighter than the background, borders are translucent. */
+/**
+ * Graphite dark: a near-black page under charcoal cards, with translucent
+ * borders. Cards stay this dark so the class type colours keep 3:1 on them.
+ */
 const dark: Colors = {
-  background: "#171415",
-  groupedBackground: "#171415",
-  surface: "#231F20",
-  text: "#FBF9FA",
-  textMuted: "#A5A0A1",
-  border: "#FFFFFF1A",
-  primary: "#F0EEEE",
-  onPrimary: "#231F20",
+  background: "#08090B",
+  groupedBackground: "#08090B",
+  surface: "#1A1E23",
+  text: "#F4F6F8",
+  textMuted: "#A8B1BB",
+  border: "#FFFFFF29",
+  primary: "#F4F6F8",
+  onPrimary: "#14171A",
   // Light enough to mark the active tab and today against the dark background.
-  primarySoft: "#4A4345",
-  accent: "#2E2A2B",
+  primarySoft: "#4A545F",
+  accent: "#262B31",
   destructive: "#FF6467",
   destructiveFill: "#DC2626",
   destructiveSoft: "#450A0A",
-  todayTint: "#2E2A2B",
+  // Kept dim: a brighter tint drops the type colours drawn on it below 3:1.
+  todayTint: "#262C33",
   warning: "#F5A524",
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
-/** Corner radii, from the admin panel's 10px base. */
-export const radius = { md: 8, lg: 10, xl: 14 } as const;
+/** Corner radius, from the admin panel's 10px base. */
+export const radius = { lg: 10 } as const;
 
 /** Text sizes, drawn in the phone's system font. */
 export const typography = {

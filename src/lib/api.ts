@@ -2,6 +2,7 @@ import { getToken, sessionToken, signOut } from "@/lib/session";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL;
 const SOMETHING_WENT_WRONG = "Κάτι πήγε στραβά. Δοκίμασε ξανά.";
+const TIMEOUT_MS = 20_000;
 
 /** A refused or failed request, with the message and reply body from the server. */
 export class ApiError extends Error {
@@ -35,7 +36,11 @@ async function request(path: string, options: Options = {}) {
   const token = options.token ?? getToken();
   const hasBody = options.body !== undefined;
 
+  // Android never gives up on a stalled connection by itself.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response: Response;
+  let data: unknown;
   try {
     response = await fetch(baseUrl + path, {
       method: options.method ?? (hasBody ? "POST" : "GET"),
@@ -45,12 +50,16 @@ async function request(path: string, options: Options = {}) {
         ...(hasBody ? { "Content-Type": "application/json" } : {}),
       },
       body: hasBody ? JSON.stringify(options.body) : undefined,
+      signal: controller.signal,
     });
+    data = await response.json().catch(() => null);
+    // On web the timeout can also cut off the reply itself.
+    if (controller.signal.aborted) throw new Error("timed out");
   } catch {
     throw new ApiError(0, "Δεν υπάρχει σύνδεση. Έλεγξε το ίντερνετ και δοκίμασε ξανά.");
+  } finally {
+    clearTimeout(timer);
   }
-
-  const data: unknown = await response.json().catch(() => null);
 
   if (!response.ok && response.status !== 304) {
     const reply = (data as { error?: unknown } | null)?.error;

@@ -37,7 +37,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "check": "npx tsx src/lib/memberships.check.ts && npx tsx src/lib/training.check.ts && npx tsx --import ./scripts/native-stubs.mjs src/lib/races.check.ts"
   },
   "private": true
 }

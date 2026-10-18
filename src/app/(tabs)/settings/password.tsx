@@ -1,57 +1,40 @@
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { StyleSheet, Text, type TextInput } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import type { TextInput } from "react-native";
 
 import { Button } from "@/components/button";
+import { FormMessage, ROOM_FOR_RULES, SettingsForm } from "@/components/form-screen";
 import { PasswordRules } from "@/components/password-rules";
-import { useTabBarSpace } from "@/components/tab-bar";
 import { TextField } from "@/components/text-field";
-import { api, errorMessage } from "@/lib/api";
+import { useAction } from "@/lib/action";
+import { api } from "@/lib/api";
+import type { TokenReply } from "@/lib/contract";
 import { passwordRules } from "@/lib/password";
-import { getSession, signIn } from "@/lib/session";
-import { spacing, typography, useColors } from "@/lib/theme";
-
-/** Space kept under the focused field, so the rules and the button below it stay above the keyboard. */
-const BOTTOM_OFFSET = 220;
+import { signInWith } from "@/lib/session";
 
 export default function ChangePasswordScreen() {
-  const colors = useColors();
-  const tabBarSpace = useTabBarSpace();
   const newRef = useRef<TextInput>(null);
   const [current, setCurrent] = useState("");
   const [password, setPassword] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, run } = useAction();
 
   const ready = current !== "" && passwordRules(password).every((rule) => rule.met);
 
-  async function submit() {
-    if (!ready || pending) return;
-    setPending(true);
-    setError(null);
-    try {
-      const from = getSession();
-      const reply = await api<{ token: string }>("/api/user-profile/password", {
-        body: { currentPassword: current, newPassword: password },
-      });
+  function submit() {
+    if (!ready) return;
+    void run(async () => {
       // Signed out meanwhile: the new token must not sign this member back in.
-      if (getSession() !== from) return;
-      await signIn(reply.token);
-      router.back();
-    } catch (e) {
-      setError(errorMessage(e));
-      setPending(false);
-    }
+      const changed = await signInWith(() =>
+        api<TokenReply>("/api/user-profile/password", {
+          body: { currentPassword: current, newPassword: password },
+        }),
+      );
+      if (changed) router.back();
+    });
   }
 
   return (
-    <KeyboardAwareScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
-      keyboardShouldPersistTaps="handled"
-      bottomOffset={BOTTOM_OFFSET}
-    >
+    <SettingsForm bottomOffset={ROOM_FOR_RULES}>
       <TextField
         label="Τρέχων κωδικός"
         secret
@@ -82,21 +65,9 @@ export default function ChangePasswordScreen() {
 
       <PasswordRules password={password} />
 
-      {error ? (
-        <Text
-          selectable
-          accessibilityRole="alert"
-          style={[typography.subhead, { color: colors.destructive }]}
-        >
-          {error}
-        </Text>
-      ) : null}
+      <FormMessage error={error} />
 
       <Button label="Αποθήκευση" onPress={submit} disabled={!ready} pending={pending} />
-    </KeyboardAwareScrollView>
+    </SettingsForm>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: spacing.lg, padding: spacing.lg },
-});

@@ -1,46 +1,26 @@
 import { router } from "expo-router";
 import { useRef, useState } from "react";
-import { StyleSheet, Text, type TextInput } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { Text, type TextInput } from "react-native";
 
 import { Button } from "@/components/button";
-import { useTabBarSpace } from "@/components/tab-bar";
+import { FormMessage, ROOM_FOR_BUTTON, SettingsForm } from "@/components/form-screen";
 import { TextField } from "@/components/text-field";
 import { TextLink } from "@/components/text-link";
-import { api, errorMessage } from "@/lib/api";
+import { useAction } from "@/lib/action";
+import { api } from "@/lib/api";
 import { confirmEmail } from "@/lib/schedule";
-import { spacing, typography, useColors } from "@/lib/theme";
-
-/** Space kept under the focused field, so the button below it stays above the keyboard. */
-const BOTTOM_OFFSET = 140;
+import { typography, useColors } from "@/lib/theme";
 
 export default function ChangeEmailScreen() {
   const colors = useColors();
-  const tabBarSpace = useTabBarSpace();
   const passwordRef = useRef<TextInput>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { pending, error, setError, notice, setNotice, run } = useAction();
 
   const canSend = email.trim() !== "" && password !== "";
-
-  async function run(action: () => Promise<void>) {
-    if (pending) return;
-    setPending(true);
-    setError(null);
-    setNotice(null);
-    try {
-      await action();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setPending(false);
-    }
-  }
 
   function send(again: boolean) {
     if (!canSend) return;
@@ -59,23 +39,8 @@ export default function ChangeEmailScreen() {
     });
   }
 
-  const message = (error || notice) && (
-    <Text
-      selectable
-      accessibilityRole={error ? "alert" : undefined}
-      style={[typography.subhead, { color: error ? colors.destructive : colors.textMuted }]}
-    >
-      {error ?? notice}
-    </Text>
-  );
-
   return (
-    <KeyboardAwareScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
-      keyboardShouldPersistTaps="handled"
-      bottomOffset={BOTTOM_OFFSET}
-    >
+    <SettingsForm bottomOffset={ROOM_FOR_BUTTON}>
       {sentTo === null ? (
         <>
           <Text style={[typography.body, { color: colors.textMuted }]}>
@@ -108,7 +73,7 @@ export default function ChangeEmailScreen() {
             returnKeyType="send"
             onSubmitEditing={() => send(false)}
           />
-          {message}
+          <FormMessage error={error} notice={notice} />
           <Button
             label="Αποστολή κωδικού"
             onPress={() => send(false)}
@@ -132,7 +97,7 @@ export default function ChangeEmailScreen() {
             returnKeyType="done"
             onSubmitEditing={confirm}
           />
-          {message}
+          <FormMessage error={error} notice={notice} />
           <Button
             label="Επιβεβαίωση"
             onPress={confirm}
@@ -152,10 +117,6 @@ export default function ChangeEmailScreen() {
           />
         </>
       )}
-    </KeyboardAwareScrollView>
+    </SettingsForm>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: spacing.lg, padding: spacing.lg },
-});

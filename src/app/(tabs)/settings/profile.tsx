@@ -1,18 +1,15 @@
 import { router } from "expo-router";
 import { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type TextInput } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { Button } from "@/components/button";
 import { DateField } from "@/components/date-field";
-import { useTabBarSpace } from "@/components/tab-bar";
+import { FormMessage, ROOM_FOR_BUTTON, SettingsForm } from "@/components/form-screen";
 import { TextField } from "@/components/text-field";
-import { errorMessage } from "@/lib/api";
-import { saveProfile, useSchedule, type Profile } from "@/lib/schedule";
+import { useAction } from "@/lib/action";
+import type { Profile } from "@/lib/contract";
+import { saveProfile, useSchedule } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
-
-/** Space kept under the focused field, so the button below the form stays above the keyboard. */
-const BOTTOM_OFFSET = 140;
 
 export default function ProfileScreen() {
   const { profile } = useSchedule();
@@ -21,15 +18,13 @@ export default function ProfileScreen() {
 
 function ProfileForm({ profile }: { profile: Profile }) {
   const colors = useColors();
-  const tabBarSpace = useTabBarSpace();
   const lastNameRef = useRef<TextInput>(null);
   const phoneRef = useRef<TextInput>(null);
   const [firstName, setFirstName] = useState(profile.first_name);
   const [lastName, setLastName] = useState(profile.last_name);
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [birth, setBirth] = useState(profile.date_of_birth);
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, run } = useAction();
 
   const changed =
     firstName !== profile.first_name ||
@@ -38,11 +33,9 @@ function ProfileForm({ profile }: { profile: Profile }) {
     birth !== profile.date_of_birth;
   const ready = changed && firstName.trim() !== "" && lastName.trim() !== "";
 
-  async function save() {
-    if (!ready || pending) return;
-    setPending(true);
-    setError(null);
-    try {
+  function save() {
+    if (!ready) return;
+    void run(async () => {
       await saveProfile({
         first_name: firstName,
         last_name: lastName,
@@ -50,19 +43,11 @@ function ProfileForm({ profile }: { profile: Profile }) {
         date_of_birth: birth,
       });
       router.back();
-    } catch (e) {
-      setError(errorMessage(e));
-      setPending(false);
-    }
+    });
   }
 
   return (
-    <KeyboardAwareScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={[styles.content, { paddingBottom: tabBarSpace }]}
-      keyboardShouldPersistTaps="handled"
-      bottomOffset={BOTTOM_OFFSET}
-    >
+    <SettingsForm bottomOffset={ROOM_FOR_BUTTON}>
       <TextField
         label="Όνομα"
         value={firstName}
@@ -123,23 +108,14 @@ function ProfileForm({ profile }: { profile: Profile }) {
         </Pressable>
       </View>
 
-      {error ? (
-        <Text
-          selectable
-          accessibilityRole="alert"
-          style={[typography.subhead, { color: colors.destructive }]}
-        >
-          {error}
-        </Text>
-      ) : null}
+      <FormMessage error={error} />
 
       <Button label="Αποθήκευση" onPress={save} disabled={!ready} pending={pending} />
-    </KeyboardAwareScrollView>
+    </SettingsForm>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.lg, padding: spacing.lg },
   field: { gap: spacing.xs },
   email: {
     flexDirection: "row",
