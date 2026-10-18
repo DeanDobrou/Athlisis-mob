@@ -25,7 +25,8 @@ export default function MembershipsScreen() {
   const [history, setHistory] = useState<PastMembership[]>([]);
   const [next, setNext] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // The failed request's message and page, so retrying asks for that same page again.
+  const [error, setError] = useState<{ message: string; before: string | null } | null>(null);
   // Counts fresh starts, so a page still loading for a list a refresh replaced is dropped
   // instead of being added after the new first page.
   const starts = useRef(0);
@@ -46,7 +47,7 @@ export default function MembershipsScreen() {
           setNext(page.next);
         },
         (e: unknown) => {
-          if (current()) setError(errorMessage(e));
+          if (current()) setError({ message: errorMessage(e), before });
         },
       )
       .finally(() => {
@@ -154,11 +155,11 @@ export default function MembershipsScreen() {
         ) : error ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => void load(history.length > 0 ? next : null)}
+            onPress={() => void load(error.before)}
             style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.accent }]}
           >
             <Text selectable style={[typography.subhead, { color: colors.destructive }]}>
-              {error}
+              {error.message}
             </Text>
             <Text style={[typography.body, { color: colors.text }]}>Δοκίμασε ξανά</Text>
           </Pressable>
