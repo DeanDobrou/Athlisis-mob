@@ -13,7 +13,12 @@ import type { MemberClass } from "@/lib/contract";
 import { minutesUntil, shortDate, timeBefore, weekdayName } from "@/lib/dates";
 import { bookClass, cancelClass, checkInClass, useSchedule } from "@/lib/schedule";
 import { radius, spacing, typography, useColors } from "@/lib/theme";
-import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES, classStatus } from "@/lib/training";
+import {
+  CANCEL_CUTOFF_MINUTES,
+  CHECK_IN_OPENS_MINUTES,
+  classStatus,
+  SHOW_CHECK_IN,
+} from "@/lib/training";
 
 export default function ClassSheet() {
   const colors = useColors();
@@ -50,7 +55,10 @@ export default function ClassSheet() {
           : `${status.left} ${status.left === 1 ? "ελεύθερη θέση" : "ελεύθερες θέσεις"} από ${item.capacity}`;
   const rules =
     status.kind !== "cancelled" && status.kind !== "ended" && status.minutes > CANCEL_CUTOFF_MINUTES
-      ? `Ακύρωση έως τις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)} · check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`
+      ? `Ακύρωση έως τις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)}` +
+        (SHOW_CHECK_IN
+          ? ` · check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`
+          : "")
       : null;
 
   const book = (confirmUnpaid: boolean) => {
@@ -83,8 +91,16 @@ export default function ClassSheet() {
   };
 
   const action = (): ReactNode => {
+    const tooLate = (
+      <Text style={muted}>
+        Η ακύρωση κλείνει μία ώρα πριν από το μάθημα.
+        {SHOW_CHECK_IN && ` Το check-in ανοίγει ${CHECK_IN_OPENS_MINUTES} λεπτά πριν.`}
+      </Text>
+    );
     switch (status.kind) {
       case "checkIn": {
+        // With check-in hidden, its window is only too late to cancel.
+        if (!SHOW_CHECK_IN) return tooLate;
         const bookingId = status.booking.id;
         return (
           <Button
@@ -95,12 +111,7 @@ export default function ClassSheet() {
         );
       }
       case "cancelClosed":
-        return (
-          <Text style={muted}>
-            Η ακύρωση κλείνει μία ώρα πριν από το μάθημα. Το check-in ανοίγει{" "}
-            {CHECK_IN_OPENS_MINUTES} λεπτά πριν.
-          </Text>
-        );
+        return tooLate;
       case "booked":
         return (
           <Button
@@ -209,7 +220,7 @@ export default function ClassSheet() {
       {booking && (
         <Text style={[typography.headline, { color: colors.primary }]}>
           ✓{" "}
-          {booking.status === "checked_in"
+          {SHOW_CHECK_IN && booking.status === "checked_in"
             ? "Έκανες check-in."
             : status.kind === "ended"
               ? "Είχες κλείσει θέση."

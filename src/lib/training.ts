@@ -7,6 +7,13 @@ export const CANCEL_CUTOFF_MINUTES = 60;
 /** Members may check in from this many minutes before a class until it ends, as on the server. */
 export const CHECK_IN_OPENS_MINUTES = 10;
 
+/**
+ * Whether the app shows check-in. Hidden while the gym limits members to one
+ * visit a day and counts nothing else. The server still takes check-ins, and
+ * the screens keep their check-in parts behind this switch for when it does.
+ */
+export const SHOW_CHECK_IN: boolean = false;
+
 /** At this many free places or fewer, a class shows as filling up. */
 export const FEW_PLACES = 3;
 

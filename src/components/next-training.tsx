@@ -8,7 +8,12 @@ import type { MemberClass } from "@/lib/contract";
 import { addDays, shortDate, timeBefore, today, weekdayName, weekdayShort } from "@/lib/dates";
 import { checkInClass } from "@/lib/schedule";
 import { spacing, typography, useColors } from "@/lib/theme";
-import { CANCEL_CUTOFF_MINUTES, CHECK_IN_OPENS_MINUTES, nextTraining } from "@/lib/training";
+import {
+  CANCEL_CUTOFF_MINUTES,
+  CHECK_IN_OPENS_MINUTES,
+  nextTraining,
+  SHOW_CHECK_IN,
+} from "@/lib/training";
 
 /** Σήμερα, Αύριο, or the weekday and date further ahead. */
 function dayWord(day: string, now: Date): string {
@@ -20,7 +25,7 @@ function dayWord(day: string, now: Date): string {
 
 /**
  * The top of the schedule: the member's next class, or its check-in once it
- * opens. Nothing at all when no class is booked.
+ * opens when check-in is shown. Nothing at all when no class is booked.
  */
 export function NextTraining({
   classes,
@@ -53,7 +58,7 @@ export function NextTraining({
     setPending(false);
   }
 
-  if (status.kind === "checkedIn") {
+  if (SHOW_CHECK_IN && status.kind === "checkedIn") {
     return (
       <View style={[styles.card, { backgroundColor: colors.primary }]}>
         <View style={[styles.badge, { backgroundColor: colors.onPrimary }]}>
@@ -73,7 +78,7 @@ export function NextTraining({
     );
   }
 
-  if (status.kind === "checkIn") {
+  if (SHOW_CHECK_IN && status.kind === "checkIn") {
     const minutes = Math.ceil(status.minutes);
     const bookingId = status.booking.id;
     return (
@@ -111,12 +116,14 @@ export function NextTraining({
   const note =
     status.kind === "booked"
       ? `Ακύρωση έως ${midSentence} στις ${timeBefore(item.start_time, CANCEL_CUTOFF_MINUTES)}`
-      : `Check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`;
+      : SHOW_CHECK_IN
+        ? `Check-in από τις ${timeBefore(item.start_time, CHECK_IN_OPENS_MINUTES)}`
+        : null;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Επόμενη προπόνηση: ${title}, ${note}`}
+      accessibilityLabel={`Επόμενη προπόνηση: ${title}${note ? `, ${note}` : ""}`}
       onPress={() => onOpen(item.id)}
       style={({ pressed }) => [
         styles.card,
@@ -132,7 +139,7 @@ export function NextTraining({
         <Text style={[styles.eyebrow, { color: colors.textMuted }]}>ΕΠΟΜΕΝΗ ΠΡΟΠΟΝΗΣΗ</Text>
         <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
         <TypeNames types={item.types} style={[typography.footnote, { color: colors.textMuted }]} />
-        <Text style={[typography.footnote, { color: colors.textMuted }]}>{note}</Text>
+        {note && <Text style={[typography.footnote, { color: colors.textMuted }]}>{note}</Text>}
       </View>
       <SymbolView
         name={{ ios: "chevron.right", android: "chevron_right", web: "chevron_right" }}
