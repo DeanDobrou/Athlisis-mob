@@ -146,10 +146,14 @@ export async function refreshSchedule(): Promise<void> {
     if (session !== started) return;
     // A password change only replaced the token: this is still the member's schedule.
     if (fresh) {
-      etag = fresh.etag;
-      cache?.create({ overwrite: true });
-      cache?.write(JSON.stringify({ etag, ...shown(fresh.data) }));
       set(shown(fresh.data));
+      etag = fresh.etag;
+      // The stored copy is only for offline starts: a failed write (a full
+      // phone) must not keep the new reply off the screen.
+      try {
+        cache?.create({ overwrite: true });
+        cache?.write(JSON.stringify({ etag, ...shown(fresh.data) }));
+      } catch {}
     }
     set({ refreshing: false });
   } catch (e) {
