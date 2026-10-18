@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Section } from "@/components/section";
@@ -26,21 +26,32 @@ export default function MembershipsScreen() {
   const [next, setNext] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Counts fresh starts, so a page still loading for a list a refresh replaced is dropped
+  // instead of being added after the new first page.
+  const starts = useRef(0);
   const now = today();
 
   /** Fetches the first page of history, or the page after `before`, and shows it when it lands. */
   function fetchPage(before: string | null) {
+    if (before === null) starts.current += 1;
+    const start = starts.current;
+    const current = () => start === starts.current;
     return api<HistoryPage>(
       "/api/user-profile/memberships" + (before ? `?before=${encodeURIComponent(before)}` : ""),
     )
       .then(
         (page) => {
+          if (!current()) return;
           setHistory((shown) => (before ? [...shown, ...page.memberships] : page.memberships));
           setNext(page.next);
         },
-        (e: unknown) => setError(errorMessage(e)),
+        (e: unknown) => {
+          if (current()) setError(errorMessage(e));
+        },
       )
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (current()) setLoading(false);
+      });
   }
 
   function load(before: string | null) {
