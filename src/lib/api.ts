@@ -1,6 +1,9 @@
 import { getToken, sessionToken, signOut } from "@/lib/session";
 
 const baseUrl = process.env.EXPO_PUBLIC_API_URL;
+
+/** A page on the gym's site, which shares its address with the API. */
+export const sitePage = (path: string) => `${baseUrl}${path}`;
 const SOMETHING_WENT_WRONG = "Κάτι πήγε στραβά. Δοκίμασε ξανά.";
 const TIMEOUT_MS = 20_000;
 
