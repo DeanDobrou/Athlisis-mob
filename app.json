@@ -11,6 +11,9 @@
       "bundleIdentifier": "gr.athlisis.app",
       "config": {
         "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "el"
       }
     },
     "android": {
@@ -32,7 +35,15 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["el"]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
