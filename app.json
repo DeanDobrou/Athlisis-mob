@@ -8,7 +8,10 @@
     "scheme": "athlisis",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "gr.athlisis.app"
+      "bundleIdentifier": "gr.athlisis.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "gr.athlisis.app",
