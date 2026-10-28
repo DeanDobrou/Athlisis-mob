@@ -8,7 +8,13 @@
     "scheme": "athlisis",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "bundleIdentifier": "gr.athlisis.app"
+      "bundleIdentifier": "gr.athlisis.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "el"
+      }
     },
     "android": {
       "package": "gr.athlisis.app",
@@ -29,7 +35,15 @@
         }
       ],
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["el"]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,4 +1,7 @@
 {
+  "cli": {
+    "appVersionSource": "remote"
+  },
   "build": {
     "preview": {
       "distribution": "internal",
@@ -6,6 +9,10 @@
         "buildType": "apk"
       },
       "channel": "preview"
+    },
+    "production": {
+      "autoIncrement": true,
+      "channel": "production"
     }
   }
 }

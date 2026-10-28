@@ -1,10 +1,12 @@
 import Constants from "expo-constants";
+import * as Linking from "expo-linking";
 import { useRouter, type Href } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Section } from "@/components/section";
 import { TabScroll } from "@/components/tab-scroll";
+import { sitePage } from "@/lib/api";
 import type { Membership } from "@/lib/contract";
 import { longDate, today } from "@/lib/dates";
 import { groupMemberships, money, standing } from "@/lib/memberships";
@@ -28,6 +30,13 @@ export default function AccountScreen() {
           </>
         )}
         <LinkRow label="Αλλαγή κωδικού" href="/settings/password" />
+      </Section>
+
+      {/* Both app stores want the privacy policy reachable from inside the app. */}
+      <Section>
+        <WebRow label="Πολιτική απορρήτου" path="/privacy" />
+        <Divider />
+        <WebRow label="Διαγραφή λογαριασμού" path="/privacy#delete" />
       </Section>
 
       <Section>
@@ -122,6 +131,26 @@ function LinkRow({ label, href }: { label: string; href: Href }) {
       {process.env.EXPO_OS === "ios" && (
         <SymbolView name="chevron.right" size={14} tintColor={colors.textMuted} />
       )}
+    </Pressable>
+  );
+}
+
+/** A row that opens a page of the gym's site in the browser. */
+function WebRow({ label, path }: { label: string; path: string }) {
+  const colors = useColors();
+
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={() => void Linking.openURL(sitePage(path))}
+      style={({ pressed }) => [styles.link, pressed && { backgroundColor: colors.accent }]}
+    >
+      <Text style={[typography.body, styles.grow, { color: colors.text }]}>{label}</Text>
+      <SymbolView
+        name={{ ios: "arrow.up.right", android: "open_in_new", web: "open_in_new" }}
+        size={14}
+        tintColor={colors.textMuted}
+      />
     </Pressable>
   );
 }
