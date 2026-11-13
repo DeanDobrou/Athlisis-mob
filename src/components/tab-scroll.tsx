@@ -33,7 +33,10 @@ export function TabScroll({
           refreshing={pulling}
           onRefresh={pull}
           tintColor={colors.primary}
-          colors={[colors.primary]}
+          // Android draws its arrow in a bubble: white with a dark arrow in both themes, since
+          // the dark theme's light `primary` vanished on the system's pale bubble.
+          colors={["#14171A"]}
+          progressBackgroundColor="#FFFFFF"
         />
       }
     >
