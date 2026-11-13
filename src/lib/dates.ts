@@ -68,6 +68,11 @@ export function weekTitle(week: string): string {
     : `${date(week)} ${SHORT_MONTHS[month(week)]} – ${date(friday)} ${SHORT_MONTHS[month(friday)]}`;
 }
 
+/** 2026-11-11 as 11 Νοεμβρίου. */
+export function dayMonth(day: string): string {
+  return `${Number(day.slice(8))} ${MONTHS_OF[Number(day.slice(5, 7)) - 1]}`;
+}
+
 /** 2026-09-28 as 28/9. */
 export function shortDate(day: string): string {
   const [, month, date] = day.split("-");

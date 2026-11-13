@@ -1,7 +1,7 @@
 // Run: npx tsx src/lib/training.check.ts
 import type { MemberClass } from "@/lib/contract";
 import { timeBefore, weekTitle } from "@/lib/dates";
-import { classLook, classStatus, nextTraining } from "@/lib/training";
+import { classLook, classStatus, dayFold, nextTraining } from "@/lib/training";
 
 const check = (ok: boolean, message: string) => {
   if (!ok) throw new Error(message);
@@ -91,5 +91,43 @@ check(
   nextTraining([...history, at("2026-10-08", "18:00")], now) === null,
   "nothing booked ahead, nothing to show",
 );
+
+// What the week view folds away on a day.
+const fold = (...items: MemberClass[]) => dayFold(items.map((c) => classStatus(c, items, now)));
+const cancelled: Partial<MemberClass> = { status: "cancelled" };
+{
+  const past = fold(
+    at("2026-10-06", "10:00"),
+    at("2026-10-06", "17:00", attended),
+    at("2026-10-06", "18:00", cancelled),
+  );
+  check(
+    past.hidden === 3 && past.count === 2 && past.booked,
+    "a day that is over folds whole, with the member's class marked",
+  );
+  const today = fold(at("2026-10-07", "10:00"), at("2026-10-07", "11:00"), at("2026-10-07", "17:00"));
+  check(
+    today.hidden === 2 && today.count === 2 && !today.booked,
+    "today folds the finished classes it starts with",
+  );
+  check(
+    fold(at("2026-10-07", "10:00", attended), at("2026-10-07", "17:00")).hidden === 0,
+    "the member's own class stays out of today's fold",
+  );
+  const early = fold(
+    at("2026-10-07", "07:00", cancelled),
+    at("2026-10-07", "10:00"),
+    at("2026-10-07", "15:00", cancelled),
+    at("2026-10-07", "17:00"),
+  );
+  check(
+    early.hidden === 2 && early.count === 1,
+    "a cancelled class folds with the finished ones after it, not on its own",
+  );
+  const over = fold(at("2026-10-07", "10:00"), at("2026-10-07", "19:00", cancelled));
+  check(over.hidden === 2 && over.count === 1, "a cancelled class still to come leaves the day over");
+  check(fold(at("2026-10-08", "17:00", cancelled)).hidden === 0, "a future day of cancelled classes is not over");
+  check(fold().hidden === 0, "a day without classes folds nothing");
+}
 
 console.log("training checks passed");

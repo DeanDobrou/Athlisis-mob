@@ -79,7 +79,7 @@ const LOOK_TEXT: Record<Exclude<ClassLook, "open">, string> = {
   booked: "έχεις κλείσει θέση",
   attended: "είχες κλείσει θέση",
   gone: "έχει περάσει",
-  full: "πλήρες",
+  full: "γεμάτο",
 };
 
 function lookOf(status: ClassStatus): ClassLook {
@@ -104,6 +104,38 @@ export function classLook(status: ClassStatus): { look: ClassLook; text: string 
   const text =
     look === "open" ? `${status.left} ${status.left === 1 ? "θέση" : "θέσεις"}` : LOOK_TEXT[look];
   return { look, text };
+}
+
+/**
+ * Which of a day's classes, in start order, the week view folds away: all of
+ * them once the day is over, else the finished ones it starts with. `count`
+ * is how many finished; `booked`, whether the member had a place on a day
+ * that is over.
+ */
+export function dayFold(
+  statuses: ClassStatus[],
+): { hidden: number; count: number; booked: boolean } {
+  // A cancelled class is never one to come.
+  const toCome = statuses.some((s) => s.kind !== "ended" && s.kind !== "cancelled");
+  if (!toCome) {
+    const count = statuses.filter((s) => s.kind === "ended").length;
+    return {
+      hidden: count > 0 ? statuses.length : 0,
+      count,
+      booked: statuses.some((s) => lookOf(s) === "attended"),
+    };
+  }
+  // A cancelled class among the finished folds with them; one after the last of them stays in view.
+  let hidden = 0;
+  let count = 0;
+  for (let i = 0; i < statuses.length; i++) {
+    const look = lookOf(statuses[i]);
+    if (look === "gone") {
+      hidden = i + 1;
+      count++;
+    } else if (look !== "cancelled") break;
+  }
+  return { hidden, count, booked: false };
 }
 
 /** The member's next booked class that is not over, for the top of the schedule. */

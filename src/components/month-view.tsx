@@ -1,6 +1,13 @@
+import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  FadeInLeft,
+  FadeInRight,
+  LayoutAnimationConfig,
+  useReducedMotion,
+} from "react-native-reanimated";
 
-import { TypeNames } from "@/components/type-names";
+import { DayPage, EASING, RESIZE } from "@/components/week-days";
 import type { MemberClass } from "@/lib/contract";
 import {
   addDays,
@@ -10,8 +17,8 @@ import {
   WEEKDAYS,
   weekStart,
 } from "@/lib/dates";
-import { radius, spacing, typography, useColors } from "@/lib/theme";
-import { classLook, classStatus, hasBooking, type ClassStatus } from "@/lib/training";
+import { spacing, typography, useColors } from "@/lib/theme";
+import { hasBooking } from "@/lib/training";
 
 /** Every month's Monday-to-Friday days fit in five rows. */
 const ROWS = 5;
@@ -80,6 +87,10 @@ export function MonthGrid({
   );
 }
 
+/**
+ * One day in the grid, marked as the week's strip marks it: today in a solid circle, a dot
+ * under the number on a day the member holds a place, past and empty days in grey.
+ */
 function Day({
   day,
   classes,
@@ -99,11 +110,11 @@ function Day({
   const running = classes.filter((c) => c.status !== "cancelled");
   const booked = hasBooking(classes);
   const isToday = day === today;
-  const ink = booked
+  const ink = isToday
     ? colors.onPrimary
-    : isToday || running.length > 0
-      ? colors.text
-      : colors.textMuted;
+    : day < today || running.length === 0
+      ? colors.textMuted
+      : colors.text;
   const label = [
     `${weekdayName(day)} ${shortDate(day)}`,
     running.length === 0
@@ -120,110 +131,82 @@ function Day({
       accessibilityLabel={label}
       accessibilityState={{ selected }}
       onPress={() => onSelect(day)}
-      style={({ pressed }) => [
-        styles.day,
-        { width, opacity: pressed ? 0.6 : day < today && !selected ? 0.4 : 1 },
-      ]}
+      style={({ pressed }) => [styles.day, { width, opacity: pressed ? 0.6 : 1 }]}
     >
       <View style={[styles.ring, selected && { borderColor: colors.primary }]}>
-        <View
-          style={[
-            styles.circle,
-            booked
-              ? { backgroundColor: colors.primary }
-              : isToday && { backgroundColor: colors.primarySoft },
-          ]}
-        >
-          <Text
-            style={[typography.body, (booked || isToday) && styles.bold, { color: ink }]}
-          >
+        <View style={[styles.circle, isToday && { backgroundColor: colors.primary }]}>
+          <Text style={[typography.body, isToday && styles.bold, { color: ink }]}>
             {Number(day.slice(8))}
           </Text>
+          {booked && <View style={[styles.bookedDot, { backgroundColor: ink }]} />}
         </View>
       </View>
     </Pressable>
   );
 }
 
-/** One day's classes as a list, each opening its sheet. */
+/**
+ * The picked day's classes, drawn as the week view draws a day. A new day comes in from the
+ * side it lies on, and the card around it follows its height.
+ */
 export function DayClasses({
   day,
   classes,
+  today,
   now,
+  width,
+  activeId,
   onOpen,
 }: {
   day: string;
   classes: MemberClass[];
+  today: string;
   now: Date;
+  width: number;
+  /** The class whose sheet is open, kept marked behind it. */
+  activeId: string | null;
   onOpen: (classId: string) => void;
 }) {
-  const colors = useColors();
+  const reduceMotion = useReducedMotion();
+  const [moved, setMoved] = useState({ day, forward: true });
+  if (moved.day !== day) setMoved({ day, forward: day > moved.day });
+  // The day whose finished classes are unfolded; another day starts folded again.
+  const [unfolded, setUnfolded] = useState<string | null>(null);
+  const toggle = useCallback((d: string) => setUnfolded((open) => (open === d ? null : d)), []);
+  const [height, setHeight] = useState<number>();
+  const measure = useCallback((_day: string, h: number) => setHeight(h), []);
 
   return (
-    <View style={styles.list}>
-      <Text style={[typography.headline, { color: colors.text }]}>
-        {weekdayName(day)} {shortDate(day)}
-      </Text>
-      {classes.length === 0 ? (
-        <Text style={[typography.body, { color: colors.textMuted }]}>
-          Δεν υπάρχουν μαθήματα αυτή τη μέρα.
-        </Text>
-      ) : (
-        classes.map((item) => (
-          <ClassRow
-            key={item.id}
-            item={item}
-            status={classStatus(item, classes, now)}
-            onOpen={onOpen}
-          />
-        ))
-      )}
-    </View>
-  );
-}
-
-function ClassRow({
-  item,
-  status,
-  onOpen,
-}: {
-  item: MemberClass;
-  status: ClassStatus;
-  onOpen: (classId: string) => void;
-}) {
-  const colors = useColors();
-  const { look, text } = classLook(status);
-  const mine = look === "booked" || look === "attended";
-  // Only a class still to come, booked or open, shows at full strength.
-  const faded = look !== "booked" && look !== "open";
-  const ink = mine ? colors.onPrimary : colors.text;
-  const types = item.types.map((t) => t.name).join(" · ") || "Μάθημα";
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${item.start_time}, ${types}, ${text}`}
-      onPress={() => onOpen(item.id)}
-      style={({ pressed }) => [
-        styles.classRow,
-        {
-          backgroundColor: mine ? colors.primary : colors.surface,
-          borderColor: mine ? colors.primary : colors.border,
-          opacity: faded ? 0.4 : pressed ? 0.7 : 1,
-        },
-      ]}
+    <Animated.View
+      style={{
+        height,
+        overflow: "hidden",
+        transitionProperty: "height",
+        transitionDuration: reduceMotion ? 0 : 250,
+        transitionTimingFunction: RESIZE,
+      }}
     >
-      <View style={styles.grow}>
-        <Text style={[typography.headline, styles.nums, { color: ink }]}>
-          {item.start_time} - {item.end_time}
-        </Text>
-        <TypeNames
-          types={item.types}
-          style={[typography.subhead, { color: mine ? colors.onPrimary : colors.textMuted }]}
-        />
-      </View>
-      <Text style={[typography.subhead, { color: ink }]}>{mine ? "✓" : text}</Text>
-    </Pressable>
+      {/* Only a change of day slides in, not the list's first draw. */}
+      <LayoutAnimationConfig skipEntering>
+        <Animated.View
+          key={day}
+          entering={(moved.forward ? FadeInRight : FadeInLeft).duration(250).easing(EASING)}
+        >
+          <DayPage
+            day={day}
+            classes={classes}
+            today={today}
+            now={now}
+            width={width}
+            activeId={activeId}
+            onOpen={onOpen}
+            onHeight={measure}
+            showDone={unfolded === day}
+            onToggle={toggle}
+          />
+        </Animated.View>
+      </LayoutAnimationConfig>
+    </Animated.View>
   );
 }
 
@@ -249,17 +232,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  bookedDot: { position: "absolute", bottom: 4, width: 4, height: 4, borderRadius: 2 },
   bold: { fontWeight: "600" },
-  list: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-  classRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    borderCurve: "continuous",
-  },
-  grow: { flex: 1, gap: 2 },
-  nums: { fontVariant: ["tabular-nums"] },
 });

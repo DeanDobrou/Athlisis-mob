@@ -1,10 +1,11 @@
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AppState,
   FlatList,
+  PixelRatio,
   Pressable,
   StyleSheet,
   Text,
@@ -26,7 +27,7 @@ import { DayClasses, MonthGrid } from "@/components/month-view";
 import { NextTraining } from "@/components/next-training";
 import { Segmented } from "@/components/segmented";
 import { TabScroll } from "@/components/tab-scroll";
-import { WeekLegend, WeekTimetable } from "@/components/week-timetable";
+import { WeekDays } from "@/components/week-days";
 import { useClock } from "@/lib/clock";
 import type { MemberClass } from "@/lib/contract";
 import {
@@ -36,6 +37,7 @@ import {
   monthName,
   monthStart,
   today,
+  WEEKDAYS,
   weekStart,
   weekTitle,
 } from "@/lib/dates";
@@ -86,12 +88,17 @@ export default function CalendarScreen() {
   const colors = useColors();
   const { width } = useWindowDimensions();
   // The pages fill the calendar card: the screen less its margins and border.
-  const pageWidth = width - (spacing.lg + 1) * 2;
+  // In whole pixels, with the lists held to it: Android pages by a list's pixel width, and a
+  // fraction of a pixel off per page adds up over a year of days.
+  const pageWidth = PixelRatio.roundToNearestPixel(width - (spacing.lg + 1) * 2);
   const { classes, refreshing, error } = useSchedule();
   const [mode, setMode] = useState<Mode>("week");
   const [focus, setFocus] = useState<string | null>(null);
   const list = useRef<FlatList<string>>(null);
   const router = useRouter();
+  // The class whose sheet is open, kept marked behind it.
+  const pathname = usePathname();
+  const activeId = pathname.startsWith("/class/") ? pathname.slice("/class/".length) : null;
   // Which classes are over, open to check-in or past cancelling is read off this clock.
   const now = useClock();
 
@@ -110,18 +117,13 @@ export default function CalendarScreen() {
     }
     return map;
   }, [classes]);
-  // Each week's classes as one stable array, so an unchanged week skips rendering.
-  const byWeek = useMemo(() => {
-    const map = new Map<string, MemberClass[]>();
-    for (const c of classes ?? []) {
-      const week = weekStart(c.day);
-      const list = map.get(week);
-      if (list) list.push(c);
-      else map.set(week, [c]);
-    }
-    return map;
-  }, [classes]);
-  const focused = focus ?? start;
+  // The week view swipes day by day: Monday to Friday of every week page.
+  const days = useMemo(
+    () => (mode === "week" ? pages.flatMap((w) => WEEKDAYS.map((_, i) => addDays(w, i))) : []),
+    [mode, pages],
+  );
+  // A day picked in the month view outside the weeks there are opens the week on today.
+  const focused = mode === "week" && !days.includes(focus ?? start) ? start : (focus ?? start);
   const openingIndex = pages.indexOf(opening);
   const found = pages.indexOf(pageOf(focused));
   const current = found === -1 ? openingIndex : found;
@@ -147,8 +149,18 @@ export default function CalendarScreen() {
   }
 
   function goTo(index: number) {
+    if (mode === "week") {
+      // The arrows keep the weekday, even through today's week.
+      setFocus(addDays(focused, (index - current) * 7));
+      return;
+    }
     list.current?.scrollToIndex({ index, animated: true });
     setFocus(focusFor(pages[index]));
+  }
+
+  function goToday() {
+    if (mode === "month") list.current?.scrollToIndex({ index: openingIndex, animated: true });
+    setFocus(start);
   }
 
   const open = useCallback(
@@ -192,7 +204,7 @@ export default function CalendarScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Σήμερα"
-                onPress={() => goTo(openingIndex)}
+                onPress={goToday}
                 style={({ pressed }) => [styles.today, { opacity: pressed ? 0.5 : 1 }]}
               >
                 <SymbolView
@@ -250,48 +262,53 @@ export default function CalendarScreen() {
               key={mode}
               entering={(mode === "month" ? FadeInRight : FadeInLeft).duration(200).easing(EASE_OUT)}
             >
-              <Animated.View
-                style={{
-                  height: heights[`${mode}:${page}`],
-                  overflow: "hidden",
-                  transitionProperty: "height",
-                  transitionDuration: 250,
-                  transitionTimingFunction: RESIZE,
-                }}
-              >
-                <FlatList
-                  key={`${mode}:${pages[0]}:${pages.length}`}
-                  ref={list}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.pages}
-                  data={pages}
-                  keyExtractor={(item) => item}
-                  initialScrollIndex={current}
-                  initialNumToRender={1}
-                  maxToRenderPerBatch={1}
-                  windowSize={3}
-                  getItemLayout={(_, index) => ({
-                    length: pageWidth,
-                    offset: pageWidth * index,
-                    index,
-                  })}
-                  onMomentumScrollEnd={(e) => {
-                    const target = pages[Math.round(e.nativeEvent.contentOffset.x / pageWidth)];
-                    if (target !== page) setFocus(focusFor(target));
+              {mode === "week" ? (
+                <WeekDays
+                  days={days}
+                  selected={focused}
+                  onSelect={setFocus}
+                  byDay={byDay}
+                  today={day}
+                  now={now}
+                  width={pageWidth}
+                  activeId={activeId}
+                  onOpen={open}
+                />
+              ) : (
+                <Animated.View
+                  style={{
+                    height: heights[page],
+                    overflow: "hidden",
+                    transitionProperty: "height",
+                    transitionDuration: 250,
+                    transitionTimingFunction: RESIZE,
                   }}
-                  renderItem={({ item }) => (
-                    <View onLayout={(e) => measure(`${mode}:${item}`, e.nativeEvent.layout.height)}>
-                      {mode === "week" ? (
-                        <WeekTimetable
-                          week={item}
-                          classes={byWeek.get(item) ?? NO_CLASSES}
-                          width={pageWidth}
-                          now={now}
-                          onOpen={open}
-                        />
-                      ) : (
+                >
+                  <FlatList
+                    key={`${pages[0]}:${pages.length}`}
+                    style={{ width: pageWidth }}
+                    ref={list}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.pages}
+                    data={pages}
+                    keyExtractor={(item) => item}
+                    initialScrollIndex={current}
+                    initialNumToRender={1}
+                    maxToRenderPerBatch={1}
+                    windowSize={3}
+                    getItemLayout={(_, index) => ({
+                      length: pageWidth,
+                      offset: pageWidth * index,
+                      index,
+                    })}
+                    onMomentumScrollEnd={(e) => {
+                      const target = pages[Math.round(e.nativeEvent.contentOffset.x / pageWidth)];
+                      if (target !== page) setFocus(focusFor(target));
+                    }}
+                    renderItem={({ item }) => (
+                      <View onLayout={(e) => measure(item, e.nativeEvent.layout.height)}>
                         <MonthGrid
                           month={item}
                           byDay={byDay}
@@ -300,31 +317,36 @@ export default function CalendarScreen() {
                           selected={focused}
                           onSelect={setFocus}
                         />
-                      )}
-                    </View>
-                  )}
-                />
-              </Animated.View>
+                      </View>
+                    )}
+                  />
+                </Animated.View>
+              )}
             </Animated.View>
           </LayoutAnimationConfig>
         )}
       </View>
 
-      {classes && (
-        <LayoutAnimationConfig skipEntering>
-          <Animated.View key={mode} entering={FadeIn.duration(200).easing(EASE_OUT)}>
-            {mode === "week" ? (
-              <WeekLegend classes={byWeek.get(page) ?? NO_CLASSES} />
-            ) : (
-              <DayClasses
-                day={focused}
-                classes={byDay.get(focused) ?? NO_CLASSES}
-                now={now}
-                onOpen={open}
-              />
-            )}
-          </Animated.View>
-        </LayoutAnimationConfig>
+      {/* The week shows its day's classes in the card; the month lists the picked day's in a card below. */}
+      {classes && mode === "month" && (
+        <Animated.View
+          entering={FadeIn.duration(200).easing(EASE_OUT)}
+          style={[
+            styles.calendar,
+            styles.dayCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <DayClasses
+            day={focused}
+            classes={byDay.get(focused) ?? NO_CLASSES}
+            today={day}
+            now={now}
+            width={pageWidth}
+            activeId={activeId}
+            onOpen={open}
+          />
+        </Animated.View>
       )}
     </TabScroll>
   );
@@ -383,6 +405,7 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     overflow: "hidden",
   },
+  dayCard: { paddingTop: spacing.md },
   bar: {
     flexDirection: "row",
     alignItems: "center",

@@ -4,7 +4,6 @@ import {
   View,
   type StyleProp,
   type TextStyle,
-  type ViewStyle,
 } from "react-native";
 
 import type { ClassType } from "@/lib/contract";
@@ -15,31 +14,23 @@ const DOT = 8;
 /** A class's type names, each after its colour dot, as the web schedule shows them. */
 export function TypeNames({
   types,
+  stacked = false,
   style,
 }: {
   types: ClassType[];
+  /** One name per line, rather than side by side as they fit. */
+  stacked?: boolean;
   style: StyleProp<TextStyle>;
 }) {
   if (types.length === 0) return <Text style={style}>Μάθημα</Text>;
 
   return (
-    <View style={styles.names}>
+    <View style={[styles.names, stacked && styles.stacked]}>
       {types.map((t) => (
         <View key={t.id} style={styles.name}>
           <Dot color={t.color_hex} />
-          <Text style={style}>{t.name}</Text>
+          <Text style={[styles.text, style]}>{t.name}</Text>
         </View>
-      ))}
-    </View>
-  );
-}
-
-/** A class's type colours as a bar, one segment per type. */
-export function TypeBar({ types, style }: { types: ClassType[]; style: StyleProp<ViewStyle> }) {
-  return (
-    <View style={[styles.bar, style]}>
-      {types.map((t) => (
-        <View key={t.id} style={[styles.segment, { backgroundColor: t.color_hex ?? "transparent" }]} />
       ))}
     </View>
   );
@@ -51,8 +42,9 @@ function Dot({ color }: { color: string | null }) {
 
 const styles = StyleSheet.create({
   names: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.md, rowGap: 2 },
+  stacked: { flexDirection: "column" },
   name: { flexDirection: "row", alignItems: "center", gap: 6 },
-  bar: { flexDirection: "row", gap: 2 },
-  segment: { flex: 1, borderRadius: 3 },
+  // A long name wraps beside its dot rather than running out of the row.
+  text: { flexShrink: 1 },
   dot: { width: DOT, height: DOT, borderRadius: DOT / 2 },
 });

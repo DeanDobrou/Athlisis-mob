@@ -3,7 +3,7 @@ import { useColorScheme, type TextStyle } from "react-native";
 
 /**
  * Graphite: cool neutral greys with a near-black `primary`. `primarySoft` is
- * the soft grey behind the active tab and today in the month view.
+ * the soft grey behind the active tab.
  */
 const light = {
   background: "#FFFFFF",
@@ -19,10 +19,14 @@ const light = {
   destructive: "#E7000B",
   destructiveFill: "#E7000B",
   destructiveSoft: "#FEE2E2",
-  /** Behind today's column in the week timetable. */
-  todayTint: "#E6EAEF",
-  /** A class that is filling up. */
+  /** A class that is filling up, and its soft chip behind. */
   warning: "#B45309",
+  warningSoft: "#FEF3E2",
+  /** A class with places, and its soft chip behind. */
+  success: "#166534",
+  successSoft: "#DCFCE7",
+  /** A neutral chip: a full class, a past one of yours. */
+  chip: "#E3E7EC",
 };
 
 export type Colors = typeof light;
@@ -40,15 +44,17 @@ const dark: Colors = {
   border: "#FFFFFF29",
   primary: "#F4F6F8",
   onPrimary: "#14171A",
-  // Light enough to mark the active tab and today against the dark background.
+  // Light enough to mark the active tab against the dark background.
   primarySoft: "#4A545F",
   accent: "#262B31",
   destructive: "#FF6467",
   destructiveFill: "#DC2626",
   destructiveSoft: "#450A0A",
-  // Kept dim: a brighter tint drops the type colours drawn on it below 3:1.
-  todayTint: "#262C33",
   warning: "#F5A524",
+  warningSoft: "#3A2508",
+  success: "#86EFAC",
+  successSoft: "#12331F",
+  chip: "#2E343B",
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
