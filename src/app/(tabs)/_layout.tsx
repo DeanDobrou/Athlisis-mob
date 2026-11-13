@@ -13,13 +13,14 @@ import {
   TabBubble,
   TabButton,
 } from "@/components/tab-bar";
-import { refreshIfStale } from "@/lib/schedule";
+import { refreshIfStale, useSchedule } from "@/lib/schedule";
 import { useColors } from "@/lib/theme";
 
 export default function TabsLayout() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
+  const { memberships } = useSchedule();
   // On Android a sheet opens inside the tab, under the bar, so the bar steps aside for it.
   const sheetOpen = pathname.startsWith("/class/") || pathname === "/settings/sign-out";
 
@@ -62,6 +63,8 @@ export default function TabsLayout() {
                   web: "account_circle",
                 }}
                 label="Λογαριασμός"
+                // A nudge to the account tab, which says what is owed.
+                dot={memberships?.some((m) => m.owed_cents) && "εκκρεμεί πληρωμή"}
               />
             </TabTrigger>
           </Animated.View>

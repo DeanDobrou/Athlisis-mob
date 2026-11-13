@@ -1,6 +1,6 @@
 import type { TabTriggerSlotProps } from "expo-router/ui";
 import { SymbolView, type SymbolViewProps } from "expo-symbols";
-import { Pressable, StyleSheet } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { cubicBezier, useReducedMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -57,12 +57,15 @@ export function TabButton({
   icon,
   focusedIcon = icon,
   label,
+  dot,
   isFocused,
   ...props
 }: TabTriggerSlotProps & {
   icon: SymbolViewProps["name"];
   focusedIcon?: SymbolViewProps["name"];
   label: string;
+  /** A red dot on the icon and these words after the label, for something waiting in the tab. */
+  dot?: string | false;
 }) {
   const colors = useColors();
   const ink = isFocused ? colors.text : colors.textMuted;
@@ -72,9 +75,13 @@ export function TabButton({
       {...props}
       accessibilityRole="tab"
       accessibilityState={{ selected: isFocused }}
+      accessibilityLabel={dot ? `${label}, ${dot}` : undefined}
       style={({ pressed }) => [styles.tab, pressed && { opacity: 0.7 }]}
     >
-      <SymbolView name={isFocused ? focusedIcon : icon} size={22} tintColor={ink} />
+      <View>
+        <SymbolView name={isFocused ? focusedIcon : icon} size={22} tintColor={ink} />
+        {dot && <View style={[styles.dot, { backgroundColor: colors.destructive }]} />}
+      </View>
       <Animated.Text
         style={[
           styles.label,
@@ -103,5 +110,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 2,
   },
+  dot: { position: "absolute", top: -1, right: -3, width: 8, height: 8, borderRadius: 4 },
   label: { fontSize: 10, fontWeight: "600" },
 });
