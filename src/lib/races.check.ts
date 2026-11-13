@@ -87,7 +87,7 @@ const scenarios: [string, () => Promise<string | null>][] = [
     async () => {
       await fresh("anna");
       await loadClasses([klass("x")]);
-      const booking = bookClass("x", false);
+      const booking = bookClass("x");
       await tick();
       await signOut();
       await signIn("babis");

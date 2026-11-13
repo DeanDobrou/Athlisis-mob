@@ -77,8 +77,5 @@ export type EmailReply = { email: string };
 /** POST /api/bookings. */
 export type BookReply = { id: string };
 
-/** POST /api/bookings refuses with this; `confirm` asks to book on an unpaid membership. */
-export type BookRefusal = { error: string; confirm?: true; amountCents?: number };
-
 /** DELETE /api/bookings/:id. `notice` says what the member still owes. */
 export type CancelReply = { notice?: string };

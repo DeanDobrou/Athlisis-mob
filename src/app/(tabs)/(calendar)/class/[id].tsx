@@ -26,7 +26,6 @@ export default function ClassSheet() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { classes } = useSchedule();
   const { pending, error, setError, notice, setNotice, run } = useAction();
-  const [confirm, setConfirm] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   // Check-in, the cancel cutoff and the start are read off this clock below.
   const now = useClock();
@@ -61,11 +60,10 @@ export default function ClassSheet() {
           : "")
       : null;
 
-  const book = (confirmUnpaid: boolean) => {
+  const book = () => {
     void run(async () => {
-      const asked = await bookClass(item.id, confirmUnpaid);
-      if (asked) setConfirm(asked.confirm);
-      else router.back();
+      await bookClass(item.id);
+      router.back();
     });
   };
 
@@ -128,15 +126,7 @@ export default function ClassSheet() {
       case "bookedThatDay":
         return <Text style={muted}>Έχεις ήδη κλείσει θέση αυτή την ημέρα.</Text>;
       case "open":
-        return confirm ? (
-          <>
-            <Text style={[typography.body, { color: colors.text }]}>{confirm}</Text>
-            <Button label="Κλείσε θέση" onPress={() => book(true)} pending={pending} />
-            <Button label="Άκυρο" tone="plain" onPress={() => setConfirm(null)} disabled={pending} />
-          </>
-        ) : (
-          <Button label="Κλείσε θέση" onPress={() => book(false)} pending={pending} />
-        );
+        return <Button label="Κλείσε θέση" onPress={book} pending={pending} />;
       case "full": {
         const nearest = nearestFree();
         if (!nearest) return null;

@@ -4,7 +4,6 @@ import { Platform } from "react-native";
 
 import { api, apiIfChanged, ApiError, errorMessage } from "@/lib/api";
 import type {
-  BookRefusal,
   BookReply,
   CancelReply,
   EmailReply,
@@ -193,25 +192,14 @@ function patch(classId: string, change: (c: MemberClass) => MemberClass) {
   set({ classes: state.classes?.map((c) => (c.id === classId ? change(c) : c)) ?? null });
 }
 
-/**
- * Books a class. With no coverage the server asks first: this returns its
- * message and books nothing until called again with `confirmUnpaid`.
- */
-export async function bookClass(
-  classId: string,
-  confirmUnpaid: boolean,
-): Promise<{ confirm: string } | null> {
-  try {
-    await mutate(
-      () => api<BookReply>("/api/bookings", { body: { classId, confirm: confirmUnpaid } }),
-      ({ id }) =>
-        patch(classId, (c) => ({ ...c, booked: c.booked + 1, my_booking: { id, status: "booked" } })),
-    );
-    return null;
-  } catch (e) {
-    if (e instanceof ApiError && (e.body as BookRefusal | null)?.confirm) return { confirm: e.message };
-    throw e;
-  }
+/** Books a class. With no coverage the server starts a new unpaid membership for it. */
+export async function bookClass(classId: string): Promise<void> {
+  await mutate(
+    // `confirm` is for a server that still asks before booking without coverage.
+    () => api<BookReply>("/api/bookings", { body: { classId, confirm: true } }),
+    ({ id }) =>
+      patch(classId, (c) => ({ ...c, booked: c.booked + 1, my_booking: { id, status: "booked" } })),
+  );
 }
 
 /** Cancels a booking. Returns what the member still owes, if anything. */
